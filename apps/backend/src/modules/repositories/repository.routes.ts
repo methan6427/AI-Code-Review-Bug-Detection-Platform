@@ -1,0 +1,15 @@
+import { Router } from "express";
+import { asyncHandler } from "../../utils/asyncHandler";
+import { RepositoryController } from "./repository.controller";
+import { ScanController } from "../scans/scan.controller";
+
+const controller = new RepositoryController();
+const scanController = new ScanController();
+export const repositoryRouter = Router();
+
+repositoryRouter.get("/", asyncHandler(controller.list.bind(controller)));
+repositoryRouter.post("/", asyncHandler(controller.create.bind(controller)));
+repositoryRouter.get("/:id", asyncHandler(controller.detail.bind(controller)));
+repositoryRouter.patch("/:id", asyncHandler(controller.update.bind(controller)));
+repositoryRouter.delete("/:id", asyncHandler(controller.remove.bind(controller)));
+repositoryRouter.post("/:id/scan", asyncHandler(scanController.createForRepository.bind(scanController)));
