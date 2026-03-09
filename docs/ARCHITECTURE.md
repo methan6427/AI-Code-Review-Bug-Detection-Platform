@@ -13,6 +13,7 @@ Phase 1 is an end-to-end MVP for authenticated users to register, manage reposit
 - React Router for route composition
 - TanStack Query for API state and caching
 - Local auth state backed by Supabase-style access tokens returned by the backend
+- Supabase browser OAuth for GitHub provider redirects and callback session exchange
 
 ### Backend
 
@@ -33,6 +34,7 @@ Phase 1 is an end-to-end MVP for authenticated users to register, manage reposit
 ## Backend Module Boundaries
 
 - `auth`: signup, login, logout, current user, auth middleware
+- `github`: webhook verification and GitHub event intake
 - `repositories`: CRUD-lite for repositories and sample code assets
 - `scans`: scan creation, status lifecycle, scan detail retrieval
 - `issues`: issue listing with filtering
@@ -64,4 +66,3 @@ Phase 1 is an end-to-end MVP for authenticated users to register, manage reposit
 - Backend deploys as a Node service to Render, Railway, Fly.io, or similar
 - Supabase provides Postgres, Auth, and optional storage
 - Environment variables are isolated per app
-

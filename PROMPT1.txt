@@ -1,0 +1,317 @@
+You are helping me build a production-style portfolio project called:
+
+AI Code Review & Bug Detection Platform
+
+Your job is to ACT AS a senior software architect + senior full-stack engineer and build the project step by step with clean, maintainable code.
+
+========================
+PROJECT GOAL
+========================
+Build a full-stack platform that:
+- connects to GitHub repositories
+- allows users to register/login
+- stores users, repositories, scans, and issues
+- triggers repository scans
+- analyzes code for bugs, code smells, and possible security/performance issues
+- shows scan reports in a modern dashboard
+- is designed so AI analysis can be expanded later
+
+This is a serious CV project, so everything should be structured like a real product, not a toy demo.
+
+========================
+MANDATORY STACK
+========================
+Frontend:
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- clean modern UI
+- reusable components
+- React Router
+- TanStack Query if needed
+
+Backend API:
+- Node.js
+- TypeScript
+- Express
+- modular architecture
+
+Database / backend services:
+- Supabase
+- PostgreSQL
+- Supabase Auth if appropriate
+- Supabase tables, policies, and storage if needed
+
+Scanning / AI:
+- For phase 1, keep scanning logic simple and realistic
+- Node backend may handle initial scan orchestration
+- Design architecture so Python worker can be added later
+- DO NOT overengineer phase 1 with unnecessary microservices
+- Add clean interfaces so AI scanner / static analyzer can be swapped or extended later
+
+Deployment target:
+- frontend on Vercel
+- backend should be deployable separately if needed
+- keep environment configuration clean and deployment-friendly
+
+========================
+IMPORTANT BUILD STRATEGY
+========================
+I want this built in a way that is FINISHABLE.
+
+So:
+- Start with an MVP that works end to end
+- Avoid fake enterprise complexity
+- Use a clean scalable structure
+- Implement realistic placeholders where needed
+- Make smart engineering decisions without asking me unnecessary questions
+- If something advanced should be deferred, explicitly mark it as phase 2 or future work
+
+========================
+PHASE 1 MVP FEATURES
+========================
+Implement these first:
+
+1. Authentication
+- Sign up
+- Sign in
+- Sign out
+- Protected dashboard routes
+
+2. Dashboard
+- Show user profile summary
+- Show connected repositories
+- Show recent scans
+- Show issue counts by severity
+
+3. Repository management
+- Add repository manually for MVP:
+  - repository name
+  - owner
+  - branch
+  - github url
+  - optional access token placeholder
+- Store in database
+- List repositories
+- View repository details
+
+4. Scan workflow
+- User can trigger a scan manually
+- Backend creates a scan record
+- Backend simulates repository analysis in a realistic way for MVP
+- Generate findings based on rules/patterns
+- Save issues linked to scan
+- Show scan status: queued, running, completed, failed
+
+5. Issues/reporting
+- Show findings for a scan
+- Each issue should have:
+  - title
+  - description
+  - severity
+  - category
+  - file path
+  - line number if available
+  - recommendation
+- Filter by severity/category/status
+- Nice UI for browsing issues
+
+6. Architecture preparation for future AI
+- Create service abstractions like:
+  - ScanOrchestrator
+  - StaticAnalysisService
+  - AIAnalysisService
+- In MVP, AIAnalysisService can be a placeholder or rule-based implementation
+- Structure code so later I can plug in real LLM/code analysis
+
+========================
+PHASE 2 READY BUT NOT FULLY IMPLEMENTED
+========================
+Prepare hooks/interfaces for:
+- GitHub OAuth
+- GitHub webhooks
+- PR-triggered scans
+- Real repository cloning
+- Python worker integration
+- Queue system like Redis/BullMQ
+- LLM-based analysis
+- Dependency vulnerability scanning
+
+Do not fully build these unless necessary for core architecture.
+Instead:
+- scaffold the structure
+- leave TODOs
+- document where they connect
+
+========================
+CODE QUALITY RULES
+========================
+You must follow these rules:
+
+- Use clean folder structure
+- Use TypeScript strictly
+- Prefer readability over cleverness
+- Separate concerns clearly
+- No giant files unless absolutely necessary
+- No hardcoded junk scattered around
+- Use constants/config files where appropriate
+- Add useful comments only where they help
+- Handle loading, empty, and error states
+- Validate inputs on both frontend and backend
+- Use proper naming
+- Keep components reusable
+- Keep backend services modular
+- Use async/await cleanly
+- Add proper error handling
+- Do not leave broken imports
+- Do not create placeholder code that crashes
+- Everything you write should run or be very close to runnable
+
+========================
+UI / UX EXPECTATIONS
+========================
+The UI should feel like a modern developer SaaS dashboard.
+
+Style goals:
+- dark mode friendly
+- clean cards
+- modern spacing
+- professional typography
+- severity badges
+- dashboard metrics
+- repository cards
+- scan timeline/status pills
+- issue tables or issue list cards
+
+Main pages:
+- auth page(s)
+- dashboard
+- repositories page
+- repository details page
+- scans page
+- scan details page
+- not found page
+
+========================
+DATABASE DESIGN
+========================
+Create a practical Supabase/PostgreSQL schema for:
+
+profiles
+repositories
+scans
+issues
+
+Recommended relationships:
+- user -> many repositories
+- repository -> many scans
+- scan -> many issues
+
+Each table should include:
+- primary key
+- timestamps
+- sensible constraints
+- enums where appropriate if useful
+
+Also provide:
+- SQL schema or migrations
+- brief explanation of schema choices
+
+========================
+BACKEND API REQUIREMENTS
+========================
+Build a Node/Express backend with routes for:
+
+auth
+repositories
+scans
+issues
+dashboard summary
+
+Suggested route examples:
+- POST /auth/signup
+- POST /auth/login
+- POST /auth/logout
+- GET /repositories
+- POST /repositories
+- GET /repositories/:id
+- POST /repositories/:id/scan
+- GET /scans
+- GET /scans/:id
+- GET /scans/:id/issues
+- GET /dashboard/summary
+
+Use service and controller layers where appropriate.
+
+========================
+MVP SCAN ENGINE BEHAVIOR
+========================
+For MVP, do NOT depend on real GitHub cloning yet unless it is easy to add safely.
+
+Instead, support one or more of these realistic options:
+- user submits repository metadata and sample code snippets
+- system runs pattern-based analysis on submitted code blobs/files
+- or repository has mock/demo code files stored for scan simulation
+
+The important part is:
+- the scan flow feels real
+- data model is real
+- results look believable
+- architecture supports upgrading later
+
+Create a simple rule-based analyzer that can detect examples like:
+- use of eval
+- console logs in production-like code
+- long functions / high complexity heuristic
+- hardcoded secrets pattern
+- nested callbacks / poor readability pattern
+- missing error handling pattern
+- insecure dependency placeholder warning
+
+Each finding should generate useful output.
+
+========================
+DELIVERABLE FORMAT
+========================
+Work in this order:
+
+1. First, generate the full project architecture plan
+2. Then generate the folder structure for frontend and backend
+3. Then generate the database schema
+4. Then implement backend
+5. Then implement frontend
+6. Then connect frontend to backend
+7. Then add polished UI states
+8. Then add README with setup instructions
+9. Then add a short FUTURE_IMPROVEMENTS section
+
+For each major step:
+- explain what you are about to create
+- then create the files
+- keep moving without asking me trivial questions
+
+========================
+OUTPUT RULES
+========================
+- Do not rewrite the project into a different stack
+- Do not replace Vite with Next.js
+- Do not replace Supabase with another DB
+- Do not collapse backend into frontend-only hacks
+- Do not introduce unnecessary paid services
+- Do not overcomplicate auth
+- Do not create fake code that is only pseudo-code unless explicitly marked as scaffold/TODO
+- When a file is large, still keep it clean and organized
+
+========================
+WHAT I WANT RIGHT NOW
+========================
+Start by generating:
+
+A. the full architecture plan
+B. the full folder structure
+C. the database schema
+D. the implementation roadmap
+E. then begin creating the actual project files for the MVP
+
+Build this like a real project I can proudly put on my CV.

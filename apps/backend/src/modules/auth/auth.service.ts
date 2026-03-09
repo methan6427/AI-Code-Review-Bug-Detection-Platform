@@ -86,7 +86,28 @@ export class AuthService {
   }
 
   async getCurrentProfile(userId: string) {
-    return this.fetchProfile(userId);
+    const [profile, authUserResult] = await Promise.all([
+      this.fetchProfile(userId),
+      supabaseAdmin.auth.admin.getUserById(userId),
+    ]);
+
+    if (authUserResult.error || !authUserResult.data.user) {
+      throw unauthorized(authUserResult.error?.message ?? "Auth user not found");
+    }
+
+    const authProviders = Array.from(
+      new Set(
+        (authUserResult.data.user.identities ?? [])
+          .map((identity) => identity.provider)
+          .filter((provider): provider is string => typeof provider === "string" && provider.length > 0),
+      ),
+    );
+
+    return {
+      profile,
+      authProviders,
+      githubConnected: authProviders.includes("github"),
+    };
   }
 
   private async upsertProfile(input: { userId: string; email: string; fullName: string }) {

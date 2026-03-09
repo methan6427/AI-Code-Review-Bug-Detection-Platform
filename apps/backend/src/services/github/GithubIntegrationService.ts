@@ -1,0 +1,179 @@
+import { createSign } from "node:crypto";
+import type { GithubInstallation, GithubInstallationRepository } from "@ai-review/shared";
+import { env } from "../../config/env";
+import { badRequest } from "../../utils/http";
+
+type GithubAppInstallationResponse = {
+  id?: unknown;
+  account?: {
+    login?: unknown;
+    type?: unknown;
+  };
+  repository_selection?: unknown;
+  app_slug?: unknown;
+  target_type?: unknown;
+};
+
+type GithubInstallationRepositoriesResponse = {
+  repositories?: Array<{
+    id?: unknown;
+    name?: unknown;
+    full_name?: unknown;
+    html_url?: unknown;
+    description?: unknown;
+    private?: unknown;
+    default_branch?: unknown;
+    owner?: {
+      login?: unknown;
+    };
+  }>;
+};
+
+export class GithubIntegrationService {
+  getAppInstallUrl() {
+    if (!env.GITHUB_APP_NAME) {
+      throw badRequest("GITHUB_APP_NAME is not configured");
+    }
+
+    return `https://github.com/apps/${env.GITHUB_APP_NAME}/installations/new`;
+  }
+
+  async listInstallations(): Promise<GithubInstallation[]> {
+    const response = await this.githubAppRequest("/app/installations");
+    const payload = (await response.json()) as GithubAppInstallationResponse[];
+
+    return payload
+      .map((installation) => {
+        if (
+          typeof installation.id !== "number" ||
+          typeof installation.account?.login !== "string" ||
+          typeof installation.account?.type !== "string" ||
+          typeof installation.repository_selection !== "string"
+        ) {
+          return null;
+        }
+
+        return {
+          id: installation.id,
+          accountLogin: installation.account.login,
+          accountType: installation.account.type,
+          repositorySelection: installation.repository_selection,
+          appSlug: typeof installation.app_slug === "string" ? installation.app_slug : null,
+          targetType: typeof installation.target_type === "string" ? installation.target_type : null,
+        } satisfies GithubInstallation;
+      })
+      .filter((installation): installation is GithubInstallation => installation !== null);
+  }
+
+  async listInstallationRepositories(installationId: number): Promise<GithubInstallationRepository[]> {
+    const accessToken = await this.createInstallationAccessToken(installationId);
+    const response = await fetch("https://api.github.com/installation/repositories", {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${accessToken}`,
+        "User-Agent": "ai-code-review-platform",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+
+    if (!response.ok) {
+      throw badRequest("Unable to fetch repositories for the selected GitHub App installation");
+    }
+
+    const payload = (await response.json()) as GithubInstallationRepositoriesResponse;
+
+    return (payload.repositories ?? [])
+      .map((repository) => {
+        if (
+          typeof repository.id !== "number" ||
+          typeof repository.name !== "string" ||
+          typeof repository.full_name !== "string" ||
+          typeof repository.html_url !== "string" ||
+          typeof repository.default_branch !== "string" ||
+          typeof repository.private !== "boolean" ||
+          typeof repository.owner?.login !== "string"
+        ) {
+          return null;
+        }
+
+        return {
+          id: repository.id,
+          name: repository.name,
+          fullName: repository.full_name,
+          owner: repository.owner.login,
+          defaultBranch: repository.default_branch,
+          htmlUrl: repository.html_url,
+          description: typeof repository.description === "string" ? repository.description : null,
+          isPrivate: repository.private,
+          installationId,
+        } satisfies GithubInstallationRepository;
+      })
+      .filter((repository): repository is GithubInstallationRepository => repository !== null);
+  }
+
+  private async createInstallationAccessToken(installationId: number) {
+    const response = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
+      method: "POST",
+      headers: this.getGithubAppHeaders(),
+    });
+
+    if (!response.ok) {
+      throw badRequest("Unable to create a GitHub App installation access token");
+    }
+
+    const payload = (await response.json()) as { token?: unknown };
+    if (typeof payload.token !== "string") {
+      throw badRequest("GitHub App installation token response was invalid");
+    }
+
+    return payload.token;
+  }
+
+  private async githubAppRequest(path: string) {
+    const response = await fetch(`https://api.github.com${path}`, {
+      headers: this.getGithubAppHeaders(),
+    });
+
+    if (!response.ok) {
+      throw badRequest("Unable to fetch data from the GitHub App API");
+    }
+
+    return response;
+  }
+
+  private getGithubAppHeaders() {
+    return {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${this.createAppJwt()}`,
+      "User-Agent": "ai-code-review-platform",
+      "X-GitHub-Api-Version": "2022-11-28",
+    };
+  }
+
+  private createAppJwt() {
+    if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY) {
+      throw badRequest("GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY are required for GitHub App operations");
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const header = this.base64UrlEncode({ alg: "RS256", typ: "JWT" });
+    const payload = this.base64UrlEncode({
+      iat: now - 60,
+      exp: now + 9 * 60,
+      iss: env.GITHUB_APP_ID,
+    });
+
+    const signer = createSign("RSA-SHA256");
+    signer.update(`${header}.${payload}`);
+    signer.end();
+
+    const normalizedPrivateKey = env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, "\n");
+    const signature = signer.sign(normalizedPrivateKey, "base64url");
+
+    return `${header}.${payload}.${signature}`;
+  }
+
+  private base64UrlEncode(value: object) {
+    return Buffer.from(JSON.stringify(value)).toString("base64url");
+  }
+}

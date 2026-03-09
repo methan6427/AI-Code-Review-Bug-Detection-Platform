@@ -30,6 +30,7 @@ export function RepositoryDetailsPage() {
     sampleFilesJson: "[]",
   });
   const [formError, setFormError] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   useEffect(() => {
     if (formError) {
@@ -70,11 +71,15 @@ export function RepositoryDetailsPage() {
   const scanMutation = useMutation({
     mutationFn: () => apiClient.triggerScan(repositoryId),
     onSuccess: async () => {
+      setScanError(null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["repository", repositoryId] }),
         queryClient.invalidateQueries({ queryKey: ["scans"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
       ]);
+    },
+    onError: (mutationError) => {
+      setScanError(mutationError instanceof Error ? mutationError.message : "Unable to queue scan");
     },
   });
 
@@ -173,6 +178,7 @@ export function RepositoryDetailsPage() {
   }
 
   const { repository, scans } = query.data;
+  const activeScan = scans.find((scan) => scan.status === "queued" || scan.status === "running");
 
   return (
     <div className="space-y-8">
@@ -184,12 +190,18 @@ export function RepositoryDetailsPage() {
             <Button disabled={deleteMutation.isPending} onClick={handleDelete} variant="secondary">
               {deleteMutation.isPending ? "Deleting..." : "Delete repository"}
             </Button>
-            <Button disabled={scanMutation.isPending} onClick={() => scanMutation.mutate()}>
-              {scanMutation.isPending ? "Queueing..." : "Run scan"}
+            <Button disabled={scanMutation.isPending || Boolean(activeScan)} onClick={() => scanMutation.mutate()}>
+              {scanMutation.isPending ? "Queueing..." : activeScan ? "Scan in progress" : "Run scan"}
             </Button>
           </div>
         }
       />
+      {scanError ? <p className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{scanError}</p> : null}
+      {!scanError && activeScan ? (
+        <p className="rounded-xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+          {activeScan.status === "queued" ? "A scan is already queued for this repository." : "A scan is currently running for this repository."}
+        </p>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <Card className="p-5">

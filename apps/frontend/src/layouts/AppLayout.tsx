@@ -1,7 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { apiClient } from "../lib/api-client";
 import { queryClient } from "../app/query-client";
+import { syncSupabaseBrowserSession } from "../lib/supabase";
 import { Button } from "../components/ui/Button";
 import { cn } from "../lib/utils";
 
@@ -14,6 +17,13 @@ const navigation = [
 export function AppLayout() {
   const { session, clearAuthSession } = useAuth();
   const navigate = useNavigate();
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const meQuery = useQuery({
+    queryKey: ["auth-me"],
+    queryFn: () => apiClient.getMe(),
+    enabled: Boolean(session?.accessToken),
+    staleTime: 30_000,
+  });
 
   const handleLogout = async () => {
     try {
@@ -24,6 +34,34 @@ export function AppLayout() {
       navigate("/auth");
     }
   };
+
+  const handleConnectGithub = async () => {
+    if (!session?.accessToken || !session.refreshToken) {
+      return;
+    }
+
+    setGithubError(null);
+
+    const supabase = await syncSupabaseBrowserSession({
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+    });
+
+    window.localStorage.setItem("ai-review-post-auth-redirect", window.location.pathname);
+
+    const { error } = await supabase.auth.linkIdentity({
+      provider: "github",
+      options: {
+        redirectTo: "http://localhost:5173/auth/callback",
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
+  };
+
+  const githubConnected = meQuery.data?.githubConnected ?? false;
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.14),transparent_28%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.1),transparent_24%),linear-gradient(180deg,#020617_0%,#020617_100%)] text-slate-100">
@@ -55,10 +93,22 @@ export function AppLayout() {
                 <p className="text-sm text-white">{session?.user.fullName || session?.user.email}</p>
                 <p className="text-xs text-slate-500">{session?.user.email}</p>
               </div>
+              <Button
+                disabled={githubConnected || meQuery.isLoading}
+                onClick={() => {
+                  void handleConnectGithub().catch((error) => {
+                    setGithubError(error instanceof Error ? error.message : "Unable to connect GitHub");
+                  });
+                }}
+                variant="secondary"
+              >
+                {githubConnected ? "GitHub connected" : meQuery.isLoading ? "Checking GitHub..." : "Connect GitHub"}
+              </Button>
               <Button variant="secondary" onClick={handleLogout}>
                 Sign out
               </Button>
             </div>
+            {githubError ? <p className="text-xs text-rose-300">{githubError}</p> : null}
           </div>
         </header>
         <main className="flex-1">

@@ -11,6 +11,7 @@ import { RepositoryCard } from "../components/RepositoryCard";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input, Textarea } from "../components/ui/Input";
+import { Select } from "../components/ui/Select";
 import { SectionHeader } from "../components/ui/SectionHeader";
 import { EmptyState, ErrorState, LoadingState } from "../components/ui/StatePanel";
 
@@ -18,6 +19,7 @@ export function RepositoriesPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(defaultRepositoryFormValues);
   const [error, setError] = useState<string | null>(null);
+  const [selectedInstallationId, setSelectedInstallationId] = useState<string>("");
 
   useEffect(() => {
     if (error) {
@@ -28,6 +30,19 @@ export function RepositoriesPage() {
   const repositoriesQuery = useQuery({
     queryKey: ["repositories"],
     queryFn: () => apiClient.getRepositories(),
+  });
+  const githubInstallUrlQuery = useQuery({
+    queryKey: ["github-app-install-url"],
+    queryFn: () => apiClient.getGithubAppInstallUrl(),
+  });
+  const githubInstallationsQuery = useQuery({
+    queryKey: ["github-installations"],
+    queryFn: () => apiClient.getGithubInstallations(),
+  });
+  const githubInstallationRepositoriesQuery = useQuery({
+    queryKey: ["github-installation-repositories", selectedInstallationId],
+    queryFn: () => apiClient.getGithubInstallationRepositories(Number(selectedInstallationId)),
+    enabled: Boolean(selectedInstallationId),
   });
 
   const createRepositoryMutation = useMutation({
@@ -42,6 +57,24 @@ export function RepositoriesPage() {
     },
     onError: (mutationError) => {
       setError(mutationError instanceof Error ? mutationError.message : "Unable to create repository");
+    },
+  });
+
+  const importGithubMutation = useMutation({
+    mutationFn: (githubUrl: string) => apiClient.importGithubRepository(githubUrl),
+    onSuccess: ({ repository }) => {
+      setError(null);
+      setForm((currentForm) => ({
+        ...currentForm,
+        name: repository.name,
+        owner: repository.owner,
+        branch: repository.branch,
+        githubUrl: repository.githubUrl,
+        description: repository.description ?? "",
+      }));
+    },
+    onError: (mutationError) => {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to import repository metadata");
     },
   });
 
@@ -72,6 +105,33 @@ export function RepositoriesPage() {
     description: form.description,
   });
 
+  const handleImportGithub = () => {
+    const githubUrl = form.githubUrl.trim();
+    if (!githubUrl) {
+      setError("Enter a GitHub URL first");
+      return;
+    }
+
+    importGithubMutation.mutate(githubUrl);
+  };
+
+  const handleUseInstallationRepository = (repository: {
+    name: string;
+    owner: string;
+    defaultBranch: string;
+    htmlUrl: string;
+    description: string | null;
+  }) => {
+    setForm((currentForm) => ({
+      ...currentForm,
+      name: repository.name,
+      owner: repository.owner,
+      branch: repository.defaultBranch,
+      githubUrl: repository.htmlUrl,
+      description: repository.description ?? "",
+    }));
+  };
+
   return (
     <div className="space-y-8">
       <SectionHeader
@@ -99,7 +159,17 @@ export function RepositoriesPage() {
                 <Input value={form.branch} onChange={(event) => setForm({ ...form, branch: event.target.value })} />
               </div>
               <div>
-                <label className="mb-2 block text-sm text-slate-400">GitHub URL</label>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="block text-sm text-slate-400">GitHub URL</label>
+                  <button
+                    className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-300 transition hover:text-cyan-200 disabled:cursor-not-allowed disabled:text-slate-500"
+                    disabled={importGithubMutation.isPending}
+                    onClick={handleImportGithub}
+                    type="button"
+                  >
+                    {importGithubMutation.isPending ? "Importing..." : "Import metadata"}
+                  </button>
+                </div>
                 <Input value={form.githubUrl} onChange={(event) => setForm({ ...form, githubUrl: event.target.value })} placeholder="https://github.com/owner/repository" />
               </div>
             </div>
@@ -128,6 +198,66 @@ export function RepositoriesPage() {
         </Card>
 
         <div>
+          <Card className="mb-6 p-5">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">GitHub App import</h2>
+                  <p className="text-sm text-slate-400">Install the GitHub App, then pull repository metadata from an installation.</p>
+                </div>
+                <Button
+                  disabled={githubInstallUrlQuery.isLoading || githubInstallUrlQuery.isError || !githubInstallUrlQuery.data?.url}
+                  onClick={() => {
+                    if (githubInstallUrlQuery.data?.url) {
+                      window.open(githubInstallUrlQuery.data.url, "_blank", "noopener,noreferrer");
+                    }
+                  }}
+                  variant="secondary"
+                >
+                  {githubInstallUrlQuery.isLoading ? "Loading install URL..." : "Install GitHub App"}
+                </Button>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm text-slate-400">GitHub App installation</label>
+                <Select value={selectedInstallationId} onChange={(event) => setSelectedInstallationId(event.target.value)}>
+                  <option value="">Select an installation</option>
+                  {(githubInstallationsQuery.data?.installations ?? []).map((installation) => (
+                    <option key={installation.id} value={installation.id}>
+                      {installation.accountLogin} ({installation.repositorySelection})
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              {githubInstallationsQuery.isError ? <p className="text-sm text-rose-300">{githubInstallationsQuery.error.message}</p> : null}
+              {githubInstallationRepositoriesQuery.isError ? (
+                <p className="text-sm text-rose-300">{githubInstallationRepositoriesQuery.error.message}</p>
+              ) : null}
+
+              {githubInstallationRepositoriesQuery.data?.repositories?.length ? (
+                <div className="space-y-3">
+                  {githubInstallationRepositoriesQuery.data.repositories.map((repository) => (
+                    <div key={repository.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-white">{repository.fullName}</p>
+                          <p className="mt-1 text-sm text-slate-400">{repository.description || "No description provided."}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+                            {repository.isPrivate ? "Private" : "Public"} • {repository.defaultBranch}
+                          </p>
+                        </div>
+                        <Button onClick={() => handleUseInstallationRepository(repository)} variant="secondary">
+                          Use in form
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </Card>
+
           <h2 className="mb-4 text-lg font-semibold text-white">Connected repositories</h2>
           {repositoriesQuery.isLoading ? <LoadingState title="Loading repositories..." /> : null}
           {repositoriesQuery.isError ? <ErrorState message={repositoriesQuery.error.message} retry={() => void repositoriesQuery.refetch()} /> : null}

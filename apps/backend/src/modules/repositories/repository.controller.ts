@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { createRepositorySchema, repositoryIdParamSchema, updateRepositorySchema } from "./repository.schema";
+import { createRepositorySchema, importGithubRepositorySchema, repositoryIdParamSchema, updateRepositorySchema } from "./repository.schema";
 import { RepositoryService } from "./repository.service";
 
 const repositoryService = new RepositoryService();
@@ -14,6 +14,12 @@ export class RepositoryController {
     const input = createRepositorySchema.parse(request.body);
     const repository = await repositoryService.create(request.auth!.user.id, input);
     return response.status(201).json({ repository });
+  }
+
+  async importGithub(request: Request, response: Response) {
+    const input = importGithubRepositorySchema.parse(request.body);
+    const repository = await repositoryService.importFromGithubUrl(input.githubUrl);
+    return response.json({ repository });
   }
 
   async detail(request: Request, response: Response) {

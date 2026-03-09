@@ -3,6 +3,9 @@ import type {
   AuthResponse,
   CreateRepositoryRequest,
   DashboardSummaryResponse,
+  GithubInstallation,
+  GithubInstallationRepository,
+  ImportGithubRepositoryResponse,
   Issue,
   IssueFilters,
   Repository,
@@ -97,6 +100,21 @@ export const apiClient = {
       authenticated: true,
     });
   },
+  getGithubAppInstallUrl() {
+    return request<{ url: string }>("/github/app/install-url", {
+      authenticated: true,
+    });
+  },
+  getGithubInstallations() {
+    return request<{ installations: GithubInstallation[] }>("/github/installations", {
+      authenticated: true,
+    });
+  },
+  getGithubInstallationRepositories(installationId: number) {
+    return request<{ repositories: GithubInstallationRepository[] }>(`/github/installations/${installationId}/repositories`, {
+      authenticated: true,
+    });
+  },
   getRepositories() {
     return request<{ repositories: Repository[] }>("/repositories", {
       authenticated: true,
@@ -107,6 +125,13 @@ export const apiClient = {
       method: "POST",
       authenticated: true,
       body: JSON.stringify(payload),
+    });
+  },
+  importGithubRepository(githubUrl: string) {
+    return request<ImportGithubRepositoryResponse>("/repositories/import/github", {
+      method: "POST",
+      authenticated: true,
+      body: JSON.stringify({ githubUrl }),
     });
   },
   updateRepository(id: string, payload: UpdateRepositoryRequest) {

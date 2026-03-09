@@ -6,6 +6,7 @@ import { requireAuth } from "./middleware/requireAuth";
 import { securityHeaders } from "./middleware/securityHeaders";
 import { authRouter } from "./modules/auth/auth.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
+import { githubRouter } from "./modules/github/github.routes";
 import { issueRouter } from "./modules/issues/issue.routes";
 import { repositoryRouter } from "./modules/repositories/repository.routes";
 import { scanRouter } from "./modules/scans/scan.routes";
@@ -21,6 +22,7 @@ app.use(
   }),
 );
 app.use(securityHeaders);
+app.use("/api/github", githubRouter);
 app.use(express.json({ limit: "1mb" }));
 
 app.get(

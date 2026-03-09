@@ -20,6 +20,13 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  GITHUB_TOKEN: z.string().min(1).optional(),
+  GITHUB_APP_ID: z.string().min(1).optional(),
+  GITHUB_APP_NAME: z.string().min(1).optional(),
+  GITHUB_APP_CLIENT_ID: z.string().min(1).optional(),
+  GITHUB_APP_CLIENT_SECRET: z.string().min(1).optional(),
+  GITHUB_APP_PRIVATE_KEY: z.string().min(1).optional(),
+  GITHUB_WEBHOOK_SECRET: z.string().min(1).optional(),
 });
 
 const envResult = envSchema.safeParse(process.env);

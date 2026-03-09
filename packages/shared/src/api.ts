@@ -25,6 +25,8 @@ export interface SignupRequest extends LoginRequest {
 
 export interface AuthMeResponse {
   profile: Profile;
+  authProviders: string[];
+  githubConnected: boolean;
 }
 
 export interface CreateRepositoryRequest {
@@ -38,6 +40,43 @@ export interface CreateRepositoryRequest {
 }
 
 export interface UpdateRepositoryRequest extends Partial<CreateRepositoryRequest> {}
+
+export interface ImportGithubRepositoryRequest {
+  githubUrl: string;
+}
+
+export interface ImportedGithubRepository {
+  name: string;
+  owner: string;
+  branch: string;
+  githubUrl: string;
+  description: string | null;
+}
+
+export interface ImportGithubRepositoryResponse {
+  repository: ImportedGithubRepository;
+}
+
+export interface GithubInstallation {
+  id: number;
+  accountLogin: string;
+  accountType: string;
+  repositorySelection: string;
+  appSlug: string | null;
+  targetType: string | null;
+}
+
+export interface GithubInstallationRepository {
+  id: number;
+  name: string;
+  fullName: string;
+  owner: string;
+  defaultBranch: string;
+  htmlUrl: string;
+  description: string | null;
+  isPrivate: boolean;
+  installationId: number;
+}
 
 export interface CreateScanResponse {
   scan: Scan;

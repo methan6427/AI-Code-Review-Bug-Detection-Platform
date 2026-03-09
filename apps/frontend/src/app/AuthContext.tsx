@@ -8,6 +8,7 @@ interface AuthContextValue {
   session: StoredSession | null;
   isAuthenticated: boolean;
   setAuthSession: (payload: AuthResponse) => void;
+  setStoredSession: (session: StoredSession) => void;
   clearAuthSession: () => void;
 }
 
@@ -78,6 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           expiresAt: payload.session.expiresAt,
           user: payload.user,
         };
+        sessionStorageService.set(nextSession);
+        setSession(nextSession);
+      },
+      setStoredSession: (nextSession) => {
         sessionStorageService.set(nextSession);
         setSession(nextSession);
       },

@@ -5,7 +5,7 @@ import { buildSummary } from "../../services/analysis/summary";
 import { RepositoryService } from "../repositories/repository.service";
 import type { IssueRow, ScanRow } from "../../types/database";
 import { mapIssue, mapScan } from "../../utils/mappers";
-import { badRequest, notFound } from "../../utils/http";
+import { badRequest, conflict, notFound } from "../../utils/http";
 import { supabaseAdmin } from "../../services/supabase/client";
 
 const staticAnalysisService = new RuleBasedStaticAnalysisService();
@@ -107,6 +107,10 @@ const orchestrator = new DefaultScanOrchestrator();
 export class ScanService {
   async createScan(userId: string, repositoryId: string) {
     await repositoryService.getOwnedRepository(userId, repositoryId);
+    const activeScan = await this.getActiveScan(repositoryId);
+    if (activeScan) {
+      throw conflict("A scan is already queued or running for this repository");
+    }
 
     const { data, error } = await supabaseAdmin
       .from("scans")
@@ -114,6 +118,7 @@ export class ScanService {
         repository_id: repositoryId,
         triggered_by: userId,
         status: "queued",
+        error_message: null,
       })
       .select("*")
       .single<ScanRow>();
@@ -177,5 +182,22 @@ export class ScanService {
       repository,
       issues: (issueData ?? []).map(mapIssue),
     };
+  }
+
+  private async getActiveScan(repositoryId: string) {
+    const { data, error } = await supabaseAdmin
+      .from("scans")
+      .select("*")
+      .eq("repository_id", repositoryId)
+      .in("status", ["queued", "running"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<ScanRow>();
+
+    if (error) {
+      throw badRequest(error.message);
+    }
+
+    return data ? mapScan(data) : null;
   }
 }

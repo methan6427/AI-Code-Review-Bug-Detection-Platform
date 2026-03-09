@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "../layouts/AppLayout";
 import { DashboardPage } from "../pages/DashboardPage";
 import { AuthPage } from "../pages/AuthPage";
+import { AuthCallbackPage } from "../pages/AuthCallbackPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { RepositoriesPage } from "../pages/RepositoriesPage";
 import { RepositoryDetailsPage } from "../pages/RepositoryDetailsPage";
@@ -13,6 +14,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Navigate replace to="/dashboard" />} />

@@ -9,6 +9,7 @@ export const repositoryRouter = Router();
 
 repositoryRouter.get("/", asyncHandler(controller.list.bind(controller)));
 repositoryRouter.post("/", asyncHandler(controller.create.bind(controller)));
+repositoryRouter.post("/import/github", asyncHandler(controller.importGithub.bind(controller)));
 repositoryRouter.get("/:id", asyncHandler(controller.detail.bind(controller)));
 repositoryRouter.patch("/:id", asyncHandler(controller.update.bind(controller)));
 repositoryRouter.delete("/:id", asyncHandler(controller.remove.bind(controller)));

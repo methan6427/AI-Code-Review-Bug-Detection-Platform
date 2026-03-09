@@ -24,3 +24,7 @@ export const updateRepositorySchema = createRepositorySchema
 export const repositoryIdParamSchema = z.object({
   id: z.string().uuid(),
 });
+
+export const importGithubRepositorySchema = z.object({
+  githubUrl: z.string().trim().url(),
+});

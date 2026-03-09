@@ -29,8 +29,7 @@ export class AuthController {
 
   async me(request: Request, response: Response) {
     const userId = request.auth!.user.id;
-    const profile = await authService.getCurrentProfile(userId);
-    return response.json({ profile });
+    const currentUser = await authService.getCurrentProfile(userId);
+    return response.json(currentUser);
   }
 }
-

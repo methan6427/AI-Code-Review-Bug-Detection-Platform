@@ -4,11 +4,13 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { apiClient } from "../lib/api-client";
 import { useAuth } from "../hooks/useAuth";
 import { validateAuthForm } from "../features/auth/validation";
+import { getSupabaseBrowserClient, isSupabaseOAuthConfigured } from "../lib/supabase";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 
 type Mode = "login" | "signup";
+const postAuthRedirectKey = "ai-review-post-auth-redirect";
 
 export function AuthPage() {
   const [mode, setMode] = useState<Mode>("login");
@@ -17,6 +19,7 @@ export function AuthPage() {
   const [fullName, setFullName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [githubLoading, setGithubLoading] = useState(false);
   const { isAuthenticated, setAuthSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,6 +51,41 @@ export function AuthPage() {
       setError(submissionError instanceof Error ? submissionError.message : "Unable to authenticate");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGitHubAuth = async () => {
+    if (!isSupabaseOAuthConfigured) {
+      setError("GitHub OAuth is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the frontend env.");
+      return;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      setError("GitHub OAuth client is unavailable");
+      return;
+    }
+
+    setGithubLoading(true);
+    setError(null);
+
+    try {
+      const nextRoute = (location.state as { from?: string } | null)?.from ?? "/dashboard";
+      window.localStorage.setItem(postAuthRedirectKey, nextRoute);
+
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "github",
+        options: {
+          redirectTo: "http://localhost:5173/auth/callback",
+        },
+      });
+
+      if (oauthError) {
+        throw oauthError;
+      }
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : "Unable to start GitHub sign-in");
+      setGithubLoading(false);
     }
   };
 
@@ -107,6 +145,20 @@ export function AuthPage() {
             <Button className="w-full" disabled={loading || Boolean(validationMessage)} type="submit">
               {loading ? "Working..." : mode === "login" ? "Sign in" : "Create account"}
             </Button>
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-white/10" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-slate-950 px-3 text-xs uppercase tracking-[0.3em] text-slate-500">or</span>
+              </div>
+            </div>
+            <Button className="w-full" disabled={githubLoading} onClick={handleGitHubAuth} type="button" variant="secondary">
+              {githubLoading ? "Redirecting to GitHub..." : "Continue with GitHub"}
+            </Button>
+            {!isSupabaseOAuthConfigured ? (
+              <p className="text-xs text-slate-500">GitHub OAuth becomes available after adding the frontend Supabase env variables.</p>
+            ) : null}
           </form>
         </Card>
       </div>

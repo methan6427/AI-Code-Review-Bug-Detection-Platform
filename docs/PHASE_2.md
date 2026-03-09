@@ -4,6 +4,16 @@ This document captures the intentionally deferred work after the MVP.
 
 The current project is already runnable and portfolio-ready. Phase 2 is about moving from a strong MVP to a more production-like platform.
 
+## Current Progress
+
+Started on March 9, 2026:
+
+- Scan infrastructure hardening has begun with duplicate active-scan prevention on the backend.
+- Repository scan actions now reflect active queued/running state in the UI instead of allowing repeated triggers.
+- GitHub OAuth sign-in has been added through Supabase with a dedicated frontend callback route.
+- GitHub account linking and signed webhook ingestion have been added as the next integration foundation.
+- GitHub App installation discovery and installation-backed repository import are now wired into the product.
+
 ## 1. GitHub Integration
 
 - Add GitHub OAuth login and account linking.

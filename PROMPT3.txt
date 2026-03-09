@@ -1,0 +1,27 @@
+Now do a full senior-level code review of the entire project and improve it.
+
+Tasks:
+- fix architectural inconsistencies
+- remove dead code
+- remove duplicate logic
+- improve naming
+- improve type safety
+- improve error handling
+- improve loading/empty states
+- improve responsive UI
+- improve form validation
+- improve security basics
+- improve environment variable handling
+- improve README
+- make folder structure consistent
+- make components reusable
+- make backend services cleaner
+- ensure the project is presentable as a portfolio-quality CV project
+
+Do not make unnecessary stack changes.
+Do not overengineer.
+Focus on making the project clean, impressive, and runnable.
+At the end, summarize:
+- what you improved
+- what still remains for phase 2
+- what features make this strong for a CV

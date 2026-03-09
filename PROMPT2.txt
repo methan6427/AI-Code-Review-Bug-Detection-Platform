@@ -1,0 +1,21 @@
+Now continue from the existing project and implement the MVP fully.
+
+Priorities:
+1. Make the app runnable
+2. Fix any broken imports/types/errors
+3. Complete auth flow
+4. Complete repository CRUD
+5. Complete scan trigger flow
+6. Complete issue listing and filtering
+7. Complete dashboard summary cards/charts
+8. Ensure frontend/backend integration works end to end
+9. Add seed/demo data if needed for testing
+10. Add a polished README with setup and environment variables
+
+Important:
+- Do not rewrite existing good architecture unnecessarily
+- Improve what exists
+- Keep code clean and modular
+- If something is unfinished, finish it
+- If something is broken, fix it
+- If a future feature is only scaffolded, keep it scaffolded unless needed for MVP
