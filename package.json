@@ -11,6 +11,8 @@
     "dev:backend": "npm run dev --workspace backend",
     "dev:worker": "npm run dev:worker --workspace backend",
     "dev:frontend": "npm run dev --workspace frontend",
+    "build:shared": "npm run build --workspace @ai-review/shared",
+    "build:frontend": "npm run build --workspace @ai-review/shared && npm run build --workspace frontend",
     "build": "npm run build --workspace @ai-review/shared && npm run build --workspace backend && npm run build --workspace frontend",
     "lint": "npm run lint --workspace backend && npm run lint --workspace frontend",
     "typecheck": "npm run typecheck --workspace @ai-review/shared && npm run typecheck --workspace backend && npm run typecheck --workspace frontend",

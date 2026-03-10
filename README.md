@@ -365,6 +365,50 @@ npm run test --workspace frontend
 - GitHub check runs are missing: Verify the GitHub App has `Checks: Read and write` and `Contents: Read` permissions. If you changed app permissions, reinstall or re-authorize the app on the target repository/org so the installation token picks up the new scope.
 - GitHub check runs still show `githubCheckRunId: null`: Check backend/worker logs for `Skipping GitHub check run`, `Attempting GitHub check run`, `GitHub installation access token request failed`, or `GitHub check run creation failed`. The log metadata now includes the installation id, repo, commit SHA, HTTP status, and GitHub error body.
 
+## Vercel Deployment
+
+- Root Directory: `.`
+- Build Command: `npm run build:frontend`
+- Output Directory: `apps/frontend/dist`
+
+The frontend depends on the workspace package `@ai-review/shared`, so Vercel must install and build from the monorepo root. The `build:frontend` script builds `packages/shared` first, then builds the Vite frontend.
+
+Required frontend environment variables in Vercel:
+
+- `VITE_API_URL`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+This repo includes [`vercel.json`](./vercel.json) so React Router deep links are rewritten to `index.html` and the monorepo build/output settings stay consistent.
+
+Important: this Vercel setup deploys the frontend app. The Express backend and worker are still separate runtime services and need to be hosted outside this static Vercel frontend build unless you separately convert the backend to Vercel serverless functions.
+
+### Step-by-step deployment
+
+1. Push this repository to GitHub.
+2. Deploy or keep your backend running on a public URL, for example `https://your-api.example.com/api`.
+3. In Supabase Auth settings, add your Vercel site URL and callback URL:
+   - Site URL: `https://your-project.vercel.app`
+   - Redirect URL: `https://your-project.vercel.app/auth/callback`
+4. In your backend environment, add the Vercel frontend origin to `APP_ORIGIN`.
+   Example: `APP_ORIGIN=http://localhost:5173,https://your-project.vercel.app`
+5. In Vercel, click `Add New Project` and import this repository.
+6. In the Vercel project settings, keep the project Root Directory as `.`
+7. Set these Vercel environment variables:
+   - `VITE_API_URL=https://your-api.example.com/api`
+   - `VITE_SUPABASE_URL=https://your-project.supabase.co`
+   - `VITE_SUPABASE_ANON_KEY=your-supabase-anon-key`
+8. For the build settings, use:
+   - Build Command: `npm run build:frontend`
+   - Output Directory: `apps/frontend/dist`
+9. Start the deployment.
+10. After the first deploy finishes, open the Vercel URL and test:
+   - `/auth`
+   - `/auth/callback`
+   - a deep link like `/dashboard`
+11. Verify email/password auth, GitHub auth, and Google auth from the deployed frontend.
+12. If OAuth redirects fail, re-check the Supabase redirect URLs and confirm the backend `APP_ORIGIN` includes the Vercel domain.
+
 ## Further Reading
 
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md)
