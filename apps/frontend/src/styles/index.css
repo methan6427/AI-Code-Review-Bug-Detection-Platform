@@ -13,9 +13,13 @@ body,
 body {
   margin: 0;
   font-family: "Satoshi", "Segoe UI", sans-serif;
-  background: #020617;
+  background:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.14), transparent 20%),
+    radial-gradient(circle at 80% 0%, rgba(59, 130, 246, 0.08), transparent 24%),
+    linear-gradient(180deg, #020617 0%, #020617 100%);
   color: #e2e8f0;
   line-height: 1.5;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -35,4 +39,22 @@ pre {
 ::selection {
   background: rgba(34, 211, 238, 0.3);
   color: #f8fafc;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid #020617;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.35);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
 }

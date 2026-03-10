@@ -18,6 +18,8 @@ This repo now supports the full local MVP flow:
 
 - email/password signup, login, logout, and session validation
 - GitHub sign-in via Supabase OAuth callback flow
+- GitHub App installation discovery and installation repository import
+- signed GitHub webhook ingestion for push and pull request events
 - dashboard metrics with recent scans and severity/activity charts
 - repository create, read, update, and delete
 - scan triggering with queued/running/completed states through a dedicated worker process
@@ -33,6 +35,7 @@ This repo now supports the full local MVP flow:
 - `apps/backend`: Express, TypeScript, Supabase JS, Zod
 - `packages/shared`: shared API contracts and domain types
 - `supabase/migrations`: schema and auth/profile sync trigger
+- Vitest, React Testing Library, jsdom, and Supertest for automated regression coverage
 - basic security headers, request validation, and typed environment parsing
 
 ## Project Structure
@@ -53,6 +56,51 @@ docs/           Architecture and schema notes
 - Node.js 20+
 - npm 10+
 - A Supabase project
+
+## Quick Start
+
+### Run the website locally
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Create environment files:
+
+- `apps/backend/.env`
+- `apps/frontend/.env`
+
+3. Apply the SQL migrations in [`supabase/migrations`](./supabase/migrations) to your Supabase project.
+
+4. Start the backend API:
+
+```bash
+npm run dev:backend
+```
+
+5. Start the scan worker in a second terminal:
+
+```bash
+npm run dev:worker
+```
+
+6. Start the frontend website in a third terminal:
+
+```bash
+npm run dev:frontend
+```
+
+7. Open the website at `http://localhost:5173`.
+
+Local defaults:
+
+- Website: `http://localhost:5173`
+- API: `http://localhost:4000`
+- Health endpoint: `http://localhost:4000/api/health`
+
+The worker must be running or scans will remain stuck in `queued`.
 
 ## Local Setup
 
@@ -117,19 +165,19 @@ This creates:
 
 ### 4. Start the apps
 
-Backend:
+Backend API:
 
 ```bash
 npm run dev:backend
 ```
 
-Worker:
+Scan worker:
 
 ```bash
 npm run dev:worker
 ```
 
-Frontend:
+Frontend website:
 
 ```bash
 npm run dev:frontend
@@ -143,6 +191,14 @@ Default local URLs:
 
 The scan worker must be running for queued scans to move from `queued` to `running` and `completed`.
 
+### 5. Optional: seed demo data
+
+```bash
+npm run seed:demo --workspace backend
+```
+
+This creates a demo user plus seeded repositories, scans, and issues for a ready-to-click local environment.
+
 ## Demo Seed
 
 To create a demo user plus seeded repositories/scans/issues:
@@ -152,6 +208,68 @@ npm run seed:demo --workspace backend
 ```
 
 The script is idempotent for the demo repositories. It prints the demo credentials when complete.
+
+## Automated Tests
+
+The repository now includes a monorepo automated test suite focused on high-value regression coverage instead of snapshots.
+
+### Test stack
+
+- shared contracts: Vitest
+- backend: Vitest + Supertest
+- frontend: Vitest + React Testing Library + jsdom + user-event
+- reusable factories/mocks: shared domain fixtures, mocked Supabase query builder, mocked GitHub services, mocked auth/session helpers, and render utilities
+
+### Covered areas
+
+- shared enum/domain contract stability and scan-context shapes
+- backend environment parsing and validation
+- backend schema validation and mapper behavior
+- auth route behavior and unauthorized handling
+- repository service logic
+- scan creation and duplicate active scan prevention
+- scan claim lifecycle and queued to running transitions
+- scan execution success, retry scheduling, failure exhaustion, and issue persistence
+- scan event logging and GitHub check-run publication logic
+- GitHub webhook signature verification and push/pull_request event intake
+- GitHub App installation listing, installation repository listing, and check-run API mapping
+- repository source loading fallback behavior
+- dashboard summary aggregation
+- issue filtering and triage status updates
+- frontend auth page, GitHub OAuth start flow, and OAuth callback flow
+- protected route behavior
+- dashboard, repositories, repository details, scans, and scan details pages
+- loading, empty, and error states on major pages
+- issue triage actions and retry/timeline rendering
+- frontend API client auth headers, query building, and 401 session clearing
+
+### Run tests
+
+Run the full suite:
+
+```bash
+npm test
+```
+
+Run one workspace only:
+
+```bash
+npm run test --workspace @ai-review/shared
+npm run test --workspace backend
+npm run test --workspace frontend
+```
+
+Coverage:
+
+```bash
+npm run test:coverage
+```
+
+Watch mode:
+
+```bash
+npm run test:watch
+```
 
 ## Implementation Notes
 
@@ -165,6 +283,7 @@ The script is idempotent for the demo repositories. It prints the demo credentia
 - Webhook-triggered scans now persist the webhook installation id in scan context so check reporting can still use installation-backed auth even if the repository record linkage is stale.
 - Scan details now include execution timeline events for queue, source loading, analysis, retry, and reporting stages.
 - Security basics included in this version: API input validation, bearer-token auth middleware, security headers, `x-powered-by` disabled, and typed environment validation.
+- The test suite intentionally uses deterministic mocks for Supabase, GitHub, network boundaries, and worker-side orchestration to avoid flaky local runs.
 
 ## Main API Routes
 
@@ -207,19 +326,33 @@ Scans and issues:
 ```bash
 npm run build
 npm run typecheck
+npm test
+npm run test:coverage
 npm run dev:backend
 npm run dev:worker
 npm run dev:frontend
 npm run seed:demo --workspace backend
 ```
 
+Workspace-specific test commands:
+
+```bash
+npm run test --workspace @ai-review/shared
+npm run test --workspace backend
+npm run test --workspace frontend
+```
+
 ## Architecture Snapshot
 
 - `apps/backend/src/modules/*`: domain controllers, routes, schemas, and services
 - `apps/backend/src/services/analysis/*`: rule-based and placeholder AI scan logic
+- `apps/backend/tests/*`: backend unit and integration-style tests with mocked Supabase/GitHub boundaries
 - `apps/frontend/src/features/*`: reusable form/validation logic for UI flows
 - `apps/frontend/src/components/*`: reusable UI and domain components
+- `apps/frontend/tests/*`: page, route, and API client behavior tests with React Testing Library
 - `packages/shared/src/*`: shared enums, API contracts, and domain models
+- `packages/shared/tests/*`: contract stability tests
+- `tests/factories/*`: reusable cross-workspace domain fixtures
 
 ## Troubleshooting
 
@@ -227,6 +360,8 @@ npm run seed:demo --workspace backend
 - Signup fails: Verify `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are correct in `apps/backend/.env`.
 - Frontend cannot reach backend: Confirm `VITE_API_URL` matches the backend origin and that `APP_ORIGIN` includes the frontend URL. Multiple origins can be supplied as a comma-separated list.
 - Empty dashboard after setup: Run `npm run seed:demo --workspace backend` or create a repository manually and trigger a scan.
+- Scans remain queued: Confirm `npm run dev:worker` is running in a separate terminal.
+- Tests fail to start on Windows from a restricted shell: Run the workspace test command directly from the repo root or from each workspace directory using the provided npm scripts.
 - GitHub check runs are missing: Verify the GitHub App has `Checks: Read and write` and `Contents: Read` permissions. If you changed app permissions, reinstall or re-authorize the app on the target repository/org so the installation token picks up the new scope.
 - GitHub check runs still show `githubCheckRunId: null`: Check backend/worker logs for `Skipping GitHub check run`, `Attempting GitHub check run`, `GitHub installation access token request failed`, or `GitHub check run creation failed`. The log metadata now includes the installation id, repo, commit SHA, HTTP status, and GitHub error body.
 

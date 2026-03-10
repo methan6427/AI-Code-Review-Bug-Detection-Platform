@@ -14,6 +14,7 @@ import { Input, Textarea } from "../components/ui/Input";
 import { Select } from "../components/ui/Select";
 import { SectionHeader } from "../components/ui/SectionHeader";
 import { EmptyState, ErrorState, LoadingState } from "../components/ui/StatePanel";
+import { Badge } from "../components/ui/Badge";
 
 export function RepositoriesPage() {
   const queryClient = useQueryClient();
@@ -25,7 +26,7 @@ export function RepositoriesPage() {
     if (error) {
       setError(null);
     }
-  }, [form]);
+  }, [form, error]);
 
   const repositoriesQuery = useQuery({
     queryKey: ["repositories"],
@@ -138,37 +139,66 @@ export function RepositoriesPage() {
     }));
   };
 
+  const installationCount = githubInstallationsQuery.data?.installations.length ?? 0;
+  const repositories = repositoriesQuery.data?.repositories ?? [];
+
   return (
     <div className="space-y-8">
       <SectionHeader
+        eyebrow="Repository Management"
         title="Repositories"
-        description="Create repository records with realistic metadata and optional code samples for the MVP scan engine."
+        description="Create repository records with realistic metadata, sample code, and optional GitHub installation context so scans carry meaningful source information."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <div className="grid gap-4 xl:grid-cols-3">
         <Card className="p-5">
-          <h2 className="text-lg font-semibold text-white">Add repository</h2>
-          <form className="mt-5 space-y-4" noValidate onSubmit={handleSubmit}>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Repository inventory</p>
+          <p className="mt-3 text-3xl font-semibold text-white">{repositories.length}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Repository records available for scan execution and reporting.</p>
+        </Card>
+        <Card className="p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">GitHub installations</p>
+          <p className="mt-3 text-3xl font-semibold text-white">{installationCount}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Installation-backed imports help prefill repository source, branch, and ownership details.</p>
+        </Card>
+        <Card className="p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Onboarding tip</p>
+          <p className="mt-3 text-lg font-semibold text-white">Start with metadata import, then refine sample files.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-400">This keeps repository setup fast while still letting scans produce richer findings.</p>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
+        <Card className="p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Add repository</h2>
+              <p className="mt-1 text-sm text-slate-400">Use the form below to create a repository record with enough detail for meaningful scan output.</p>
+            </div>
+            <Badge tone="manual">manual + import</Badge>
+          </div>
+          <form className="mt-6 space-y-6" noValidate onSubmit={handleSubmit}>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm text-slate-400">Repository name</label>
+                <label className="mb-2 block text-sm font-medium text-slate-300">Repository name</label>
                 <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="bug-hunter-api" />
               </div>
               <div>
-                <label className="mb-2 block text-sm text-slate-400">Owner</label>
+                <label className="mb-2 block text-sm font-medium text-slate-300">Owner</label>
                 <Input value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })} placeholder="adamkhabisa" />
               </div>
             </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm text-slate-400">Branch</label>
+                <label className="mb-2 block text-sm font-medium text-slate-300">Branch</label>
                 <Input value={form.branch} onChange={(event) => setForm({ ...form, branch: event.target.value })} />
               </div>
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <label className="block text-sm text-slate-400">GitHub URL</label>
+                  <label className="block text-sm font-medium text-slate-300">GitHub URL</label>
                   <button
-                    className="text-xs font-medium uppercase tracking-[0.2em] text-cyan-300 transition hover:text-cyan-200 disabled:cursor-not-allowed disabled:text-slate-500"
+                    className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300 transition hover:text-cyan-200 disabled:cursor-not-allowed disabled:text-slate-500"
                     disabled={importGithubMutation.isPending}
                     onClick={handleImportGithub}
                     type="button"
@@ -176,40 +206,73 @@ export function RepositoriesPage() {
                     {importGithubMutation.isPending ? "Importing..." : "Import metadata"}
                   </button>
                 </div>
-                <Input value={form.githubUrl} onChange={(event) => setForm({ ...form, githubUrl: event.target.value })} placeholder="https://github.com/owner/repository" />
+                <Input
+                  value={form.githubUrl}
+                  onChange={(event) => setForm({ ...form, githubUrl: event.target.value })}
+                  placeholder="https://github.com/owner/repository"
+                />
               </div>
             </div>
-            <div>
-              <label className="mb-2 block text-sm text-slate-400">Access token hint</label>
-              <Input value={form.accessTokenHint} onChange={(event) => setForm({ ...form, accessTokenHint: event.target.value })} placeholder="Reserved for phase 2 secure token storage" />
+
+            <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-300">Access token hint</label>
+                  <Input
+                    value={form.accessTokenHint}
+                    onChange={(event) => setForm({ ...form, accessTokenHint: event.target.value })}
+                    placeholder="Reserved for phase 2 secure token storage"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-300">Description</label>
+                  <Textarea
+                    value={form.description}
+                    onChange={(event) => setForm({ ...form, description: event.target.value })}
+                    placeholder="API service focused on payments, auth, and scan reporting."
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="mb-2 block text-sm text-slate-400">Description</label>
-              <Textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="API service focused on payments, auth, and scan reporting." />
+
+            <div className="grid gap-4">
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="block text-sm font-medium text-slate-300">Application code sample</label>
+                  <span className="text-xs text-slate-500">Used by the scan engine to simulate findings.</span>
+                </div>
+                <Textarea className="min-h-40 font-mono" value={form.applicationCode} onChange={(event) => setForm({ ...form, applicationCode: event.target.value })} />
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="block text-sm font-medium text-slate-300">package.json sample</label>
+                  <span className="text-xs text-slate-500">Helps dependency and package heuristics.</span>
+                </div>
+                <Textarea className="min-h-32 font-mono" value={form.packageJson} onChange={(event) => setForm({ ...form, packageJson: event.target.value })} />
+              </div>
             </div>
-            <div>
-              <label className="mb-2 block text-sm text-slate-400">Application code sample</label>
-              <Textarea className="min-h-40 font-mono" value={form.applicationCode} onChange={(event) => setForm({ ...form, applicationCode: event.target.value })} />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm text-slate-400">package.json sample</label>
-              <Textarea className="min-h-32 font-mono" value={form.packageJson} onChange={(event) => setForm({ ...form, packageJson: event.target.value })} />
-            </div>
+
             {error ? <p className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</p> : null}
             {!error && clientValidationMessage ? <p className="text-sm text-amber-300">{clientValidationMessage}</p> : null}
-            <Button disabled={createRepositoryMutation.isPending || Boolean(clientValidationMessage)} type="submit">
-              {createRepositoryMutation.isPending ? "Saving..." : "Save repository"}
-            </Button>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-400">A complete repository record improves scan context, source labeling, and issue relevance.</p>
+              <Button disabled={createRepositoryMutation.isPending || Boolean(clientValidationMessage)} type="submit">
+                {createRepositoryMutation.isPending ? "Saving..." : "Save repository"}
+              </Button>
+            </div>
           </form>
         </Card>
 
-        <div>
-          <Card className="mb-6 p-5">
+        <div className="space-y-6">
+          <Card className="p-5 sm:p-6">
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-white">GitHub App import</h2>
-                  <p className="text-sm text-slate-400">Install the GitHub App, then pull repository metadata from an installation.</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-400">
+                    Install the GitHub App, then pull repository metadata from an installation to reduce manual setup.
+                  </p>
                 </div>
                 <Button
                   disabled={githubInstallUrlQuery.isLoading || githubInstallUrlQuery.isError || !githubInstallUrlQuery.data?.url}
@@ -224,8 +287,8 @@ export function RepositoriesPage() {
                 </Button>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm text-slate-400">GitHub App installation</label>
+              <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                <label className="mb-2 block text-sm font-medium text-slate-300">GitHub App installation</label>
                 <Select value={selectedInstallationId} onChange={(event) => setSelectedInstallationId(event.target.value)}>
                   <option value="">Select an installation</option>
                   {(githubInstallationsQuery.data?.installations ?? []).map((installation) => (
@@ -234,6 +297,7 @@ export function RepositoriesPage() {
                     </option>
                   ))}
                 </Select>
+                <p className="mt-2 text-xs text-slate-500">Pick an installation to see repositories available for quick form prefilling.</p>
               </div>
 
               {githubInstallationsQuery.isError ? <p className="text-sm text-rose-300">{githubInstallationsQuery.error.message}</p> : null}
@@ -244,14 +308,15 @@ export function RepositoriesPage() {
               {githubInstallationRepositoriesQuery.data?.repositories?.length ? (
                 <div className="space-y-3">
                   {githubInstallationRepositoriesQuery.data.repositories.map((repository) => (
-                    <div key={repository.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                    <div key={repository.id} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-white">{repository.fullName}</p>
-                          <p className="mt-1 text-sm text-slate-400">{repository.description || "No description provided."}</p>
-                          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
-                            {repository.isPrivate ? "Private" : "Public"} • {repository.defaultBranch}
-                          </p>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium text-white">{repository.fullName}</p>
+                            <Badge tone={repository.isPrivate ? "default" : "github_push"}>{repository.isPrivate ? "private" : "public"}</Badge>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-slate-400">{repository.description || "No description provided."}</p>
+                          <p className="mt-3 text-xs uppercase tracking-[0.2em] text-slate-500">Default branch {repository.defaultBranch}</p>
                         </div>
                         <Button onClick={() => handleUseInstallationRepository(repository)} variant="secondary">
                           Use in form
@@ -260,24 +325,40 @@ export function RepositoriesPage() {
                     </div>
                   ))}
                 </div>
+              ) : selectedInstallationId && !githubInstallationRepositoriesQuery.isLoading ? (
+                <EmptyState
+                  title="No repositories available"
+                  description="This installation did not return importable repositories yet. Verify repository access in GitHub and try again."
+                />
               ) : null}
             </div>
           </Card>
 
-          <h2 className="mb-4 text-lg font-semibold text-white">Connected repositories</h2>
-          {repositoriesQuery.isLoading ? <LoadingState title="Loading repositories..." /> : null}
-          {repositoriesQuery.isError ? <ErrorState message={repositoriesQuery.error.message} retry={() => void repositoriesQuery.refetch()} /> : null}
-          {!repositoriesQuery.isLoading && !repositoriesQuery.isError && repositoriesQuery.data ? (
-            repositoriesQuery.data.repositories.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {repositoriesQuery.data.repositories.map((repository) => (
-                  <RepositoryCard key={repository.id} repository={repository} />
-                ))}
+          <div>
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Connected repositories</h2>
+                <p className="mt-1 text-sm text-slate-400">All repository records currently available for scans.</p>
               </div>
-            ) : (
-              <EmptyState title="No repositories yet" description="Create your first repository record to unlock scan workflows." />
-            )
-          ) : null}
+              <Badge tone="info">{repositories.length} total</Badge>
+            </div>
+            {repositoriesQuery.isLoading ? <LoadingState title="Loading repositories..." /> : null}
+            {repositoriesQuery.isError ? <ErrorState message={repositoriesQuery.error.message} retry={() => void repositoriesQuery.refetch()} /> : null}
+            {!repositoriesQuery.isLoading && !repositoriesQuery.isError ? (
+              repositories.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {repositories.map((repository) => (
+                    <RepositoryCard key={repository.id} repository={repository} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  title="No repositories yet"
+                  description="Create your first repository record to unlock scan workflows, activity summaries, and issue triage."
+                />
+              )
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
