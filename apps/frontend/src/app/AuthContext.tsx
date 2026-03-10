@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { createContext, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../lib/api-client";
 import { sessionStorageService, type StoredSession } from "../lib/storage";
+import { getSupabaseBrowserClient, mapSupabaseSessionToStoredSession } from "../lib/supabase";
 
 interface AuthContextValue {
   session: StoredSession | null;
@@ -19,26 +20,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const storedSession = sessionStorageService.get();
-    if (!storedSession?.accessToken) {
-      setSession(null);
-      setHydrated(true);
-      return;
-    }
-
-    setSession(storedSession);
-
     let active = true;
+    const supabase = getSupabaseBrowserClient();
 
-    void apiClient
-      .getMe()
-      .then(({ profile }) => {
+    const syncProfile = async (candidateSession: StoredSession | null) => {
+      if (!candidateSession?.accessToken) {
+        if (!active) {
+          return;
+        }
+
+        sessionStorageService.clear();
+        setSession(null);
+        setHydrated(true);
+        return;
+      }
+
+      if (active) {
+        sessionStorageService.set(candidateSession);
+        setSession(candidateSession);
+      }
+
+      try {
+        const { profile } = await apiClient.getMe();
         if (!active) {
           return;
         }
 
         const nextSession: StoredSession = {
-          ...storedSession,
+          ...candidateSession,
           user: {
             id: profile.id,
             email: profile.email,
@@ -49,23 +58,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         sessionStorageService.set(nextSession);
         setSession(nextSession);
-      })
-      .catch(() => {
+      } catch {
         if (!active) {
           return;
         }
 
         sessionStorageService.clear();
         setSession(null);
-      })
-      .finally(() => {
+      } finally {
         if (active) {
           setHydrated(true);
         }
-      });
+      }
+    };
+
+    void (async () => {
+      const storedSession = sessionStorageService.get();
+      if (!supabase) {
+        await syncProfile(storedSession);
+        return;
+      }
+
+      const { data, error } = await supabase.auth.getSession();
+      const candidateSession = error ? storedSession : data.session ? mapSupabaseSessionToStoredSession(data.session) : storedSession;
+      await syncProfile(candidateSession);
+    })();
+
+    const subscription = supabase?.auth.onAuthStateChange((_event, nextSupabaseSession) => {
+      if (!active) {
+        return;
+      }
+
+      if (!nextSupabaseSession) {
+        sessionStorageService.clear();
+        setSession(null);
+        return;
+      }
+
+      const nextSession = mapSupabaseSessionToStoredSession(nextSupabaseSession);
+      sessionStorageService.set(nextSession);
+      setSession(nextSession);
+    });
 
     return () => {
       active = false;
+      subscription?.data.subscription.unsubscribe();
     };
   }, []);
 

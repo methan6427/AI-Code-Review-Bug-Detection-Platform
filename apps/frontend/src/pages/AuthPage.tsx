@@ -4,7 +4,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { apiClient } from "../lib/api-client";
 import { useAuth } from "../hooks/useAuth";
 import { validateAuthForm } from "../features/auth/validation";
-import { getSupabaseBrowserClient, isSupabaseOAuthConfigured } from "../lib/supabase";
+import { getOAuthRedirectUrl, getSupabaseBrowserClient, isSupabaseOAuthConfigured } from "../lib/supabase";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { GithubIcon, GoogleIcon } from "../components/ui/icons";
@@ -90,7 +90,7 @@ export function AuthPage() {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "github",
         options: {
-          redirectTo: "http://localhost:5173/auth/callback",
+          redirectTo: getOAuthRedirectUrl(),
         },
       });
 
@@ -132,7 +132,7 @@ export function AuthPage() {
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: getOAuthRedirectUrl(),
         },
       });
 
@@ -265,7 +265,7 @@ export function AuthPage() {
                 <span className="bg-slate-950 px-3 text-xs uppercase tracking-[0.3em] text-slate-500">or</span>
               </div>
             </div>
-            <Button className="w-full justify-start px-4" disabled={githubLoading} onClick={handleGitHubAuth} type="button" variant="secondary">
+            <Button className="w-full justify-start px-4" disabled={githubLoading} onClick={() => void handleGitHubAuth()} type="button" variant="secondary">
               <GithubIcon className="h-4 w-4" />
               {githubLoading ? "Redirecting to GitHub..." : "Continue with GitHub"}
             </Button>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { apiClient } from "../lib/api-client";
 import { queryClient } from "../app/query-client";
-import { syncSupabaseBrowserSession } from "../lib/supabase";
+import { getOAuthRedirectUrl, syncSupabaseBrowserSession } from "../lib/supabase";
 import { Button } from "../components/ui/Button";
 import { DashboardIcon, GithubIcon, RepositoryIcon, ScanIcon } from "../components/ui/icons";
 import { cn } from "../lib/utils";
@@ -64,7 +64,7 @@ export function AppLayout() {
     const { error } = await supabase.auth.linkIdentity({
       provider: "github",
       options: {
-        redirectTo: "http://localhost:5173/auth/callback",
+        redirectTo: getOAuthRedirectUrl(),
       },
     });
 

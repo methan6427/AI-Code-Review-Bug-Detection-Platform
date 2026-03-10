@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { getSupabaseBrowserClient, isSupabaseOAuthConfigured } from "../lib/supabase";
+import { getSupabaseBrowserClient, isSupabaseOAuthConfigured, mapSupabaseSessionToStoredSession } from "../lib/supabase";
 import { InlineMessage } from "../components/ui/InlineMessage";
 import { feedbackMessages, storeFlashFeedback } from "../lib/feedback";
 
@@ -12,6 +12,7 @@ export function AuthCallbackPage() {
   const [searchParams] = useSearchParams();
   const { setStoredSession } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [loadingLabel, setLoadingLabel] = useState("Checking your Supabase session");
 
   useEffect(() => {
     if (!isSupabaseOAuthConfigured) {
@@ -39,10 +40,14 @@ export function AuthCallbackPage() {
     void (async () => {
       try {
         if (authCode) {
-          // Allow the Supabase client to finish automatic PKCE callback handling on initialization.
-          await new Promise((resolve) => window.setTimeout(resolve, 0));
+          setLoadingLabel("Finalizing provider sign-in");
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(authCode);
+          if (exchangeError) {
+            throw exchangeError;
+          }
         }
 
+        setLoadingLabel("Restoring your workspace session");
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) {
           throw sessionError;
@@ -58,27 +63,7 @@ export function AuthCallbackPage() {
           throw new Error("OAuth sign-in did not return a session");
         }
 
-        setStoredSession({
-          accessToken: finalSession.access_token,
-          refreshToken: finalSession.refresh_token,
-          expiresAt: finalSession.expires_at ?? null,
-          user: {
-            id: finalSession.user.id,
-            email: finalSession.user.email ?? "",
-            fullName:
-              typeof finalSession.user.user_metadata.full_name === "string"
-                ? finalSession.user.user_metadata.full_name
-                : typeof finalSession.user.user_metadata.name === "string"
-                  ? finalSession.user.user_metadata.name
-                  : null,
-            avatarUrl:
-              typeof finalSession.user.user_metadata.avatar_url === "string"
-                ? finalSession.user.user_metadata.avatar_url
-                : typeof finalSession.user.user_metadata.picture === "string"
-                  ? finalSession.user.user_metadata.picture
-                  : null,
-          },
-        });
+        setStoredSession(mapSupabaseSessionToStoredSession(finalSession));
 
         const redirectTarget = window.localStorage.getItem(postAuthRedirectKey) || nextRoute;
         window.localStorage.removeItem(postAuthRedirectKey);
@@ -111,7 +96,10 @@ export function AuthCallbackPage() {
           {error ? (
             <InlineMessage tone="error">{error}</InlineMessage>
           ) : (
-            <InlineMessage tone="info">Exchanging your provider authorization with Supabase and preparing the app session.</InlineMessage>
+            <div className="space-y-4">
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-cyan-300/25 border-t-cyan-300" />
+              <InlineMessage tone="info">{loadingLabel}</InlineMessage>
+            </div>
           )}
         </div>
       </div>

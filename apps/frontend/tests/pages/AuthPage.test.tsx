@@ -18,6 +18,7 @@ vi.mock("../../src/lib/api-client", () => ({
 
 vi.mock("../../src/lib/supabase", () => ({
   isSupabaseOAuthConfigured: true,
+  getOAuthRedirectUrl: () => "https://example.test/auth/callback",
   getSupabaseBrowserClient: () => ({
     auth: {
       signInWithOAuth,
@@ -58,7 +59,31 @@ describe("AuthPage", () => {
     await user.click(screen.getByRole("button", { name: "Continue with GitHub" }));
 
     await waitFor(() => expect(signInWithOAuth).toHaveBeenCalled());
+    expect(signInWithOAuth).toHaveBeenCalledWith({
+      provider: "github",
+      options: {
+        redirectTo: "https://example.test/auth/callback",
+      },
+    });
     expect(window.localStorage.getItem("ai-review-post-auth-redirect")).toBe("/dashboard");
     expect(await screen.findByText("Redirecting to GitHub")).toBeInTheDocument();
+  });
+
+  it("starts Google OAuth with the callback redirect", async () => {
+    signInWithOAuth.mockResolvedValue({ error: null });
+    const user = userEvent.setup();
+
+    renderWithProviders(<AuthPage />, { route: "/auth", path: "/auth" });
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    await waitFor(() =>
+      expect(signInWithOAuth).toHaveBeenCalledWith({
+        provider: "google",
+        options: {
+          redirectTo: "https://example.test/auth/callback",
+        },
+      }),
+    );
+    expect(await screen.findByText("Redirecting to Google")).toBeInTheDocument();
   });
 });
