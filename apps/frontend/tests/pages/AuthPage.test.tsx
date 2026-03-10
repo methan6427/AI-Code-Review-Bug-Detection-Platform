@@ -59,5 +59,6 @@ describe("AuthPage", () => {
 
     await waitFor(() => expect(signInWithOAuth).toHaveBeenCalled());
     expect(window.localStorage.getItem("ai-review-post-auth-redirect")).toBe("/dashboard");
+    expect(await screen.findByText("Redirecting to GitHub")).toBeInTheDocument();
   });
 });

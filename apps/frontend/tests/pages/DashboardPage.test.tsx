@@ -21,7 +21,7 @@ describe("DashboardPage", () => {
     renderWithProviders(<DashboardPage />);
 
     expect(await screen.findByText("Welcome back, Ada Lovelace")).toBeInTheDocument();
-    expect(screen.getByText("Open issues")).toBeInTheDocument();
+    expect(screen.getAllByText("Open issues").length).toBeGreaterThan(0);
     expect(screen.getAllByText("openai/review-platform").length).toBeGreaterThan(0);
   });
 

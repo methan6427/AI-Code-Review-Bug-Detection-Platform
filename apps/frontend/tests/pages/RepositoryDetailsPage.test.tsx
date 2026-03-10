@@ -36,7 +36,7 @@ describe("RepositoryDetailsPage", () => {
     });
 
     expect(await screen.findByText("A scan is currently running for this repository.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Scan in progress" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Scan in progress" })[0]).toBeDisabled();
   });
 
   it("shows invalid sample JSON errors before updating", async () => {

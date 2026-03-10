@@ -5,7 +5,14 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { UpdateRepositoryRequest } from "@ai-review/shared";
 import { apiClient } from "../lib/api-client";
 import { mapRepositoryFormToUpdateRequest, validateRepositoryForm, stringifySampleFiles } from "../features/repositories/form";
-import { getRepositoryConnectionLabel, getRepositoryLabel, hasActiveScan } from "../lib/scans";
+import {
+  getRepositoryConnectionLabel,
+  getRepositoryHealthState,
+  getRepositoryLabel,
+  getRepositoryReadinessLabel,
+  getRepositorySourceLabel,
+  hasActiveScan,
+} from "../lib/scans";
 import { formatDateTime, formatRelativeTime } from "../lib/utils";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -14,6 +21,11 @@ import { SectionHeader } from "../components/ui/SectionHeader";
 import { EmptyState, ErrorState, LoadingState } from "../components/ui/StatePanel";
 import { Badge } from "../components/ui/Badge";
 import { ScanRow } from "../components/ScanRow";
+import { HintPanel } from "../components/ui/HintPanel";
+import { BranchIcon, ClockIcon, GithubIcon, RepositoryIcon, SparkIcon } from "../components/ui/icons";
+import { InlineMessage } from "../components/ui/InlineMessage";
+import { useToast } from "../components/ui/Toast";
+import { feedbackMessages } from "../lib/feedback";
 
 export function RepositoryDetailsPage() {
   const params = useParams();
@@ -33,6 +45,7 @@ export function RepositoryDetailsPage() {
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const { pushToast } = useToast();
 
   useEffect(() => {
     if (formError) {
@@ -76,6 +89,7 @@ export function RepositoryDetailsPage() {
     mutationFn: () => apiClient.triggerScan(repositoryId),
     onSuccess: async () => {
       setScanError(null);
+      pushToast(feedbackMessages.scanQueued());
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["repository", repositoryId] }),
         queryClient.invalidateQueries({ queryKey: ["scans"] }),
@@ -83,7 +97,9 @@ export function RepositoryDetailsPage() {
       ]);
     },
     onError: (mutationError) => {
-      setScanError(mutationError instanceof Error ? mutationError.message : "Unable to queue scan");
+      const message = mutationError instanceof Error ? mutationError.message : "Unable to queue scan";
+      setScanError(message);
+      pushToast({ tone: "error", title: "Scan queue failed", description: message });
     },
   });
 
@@ -91,6 +107,7 @@ export function RepositoryDetailsPage() {
     mutationFn: (payload: UpdateRepositoryRequest) => apiClient.updateRepository(repositoryId, payload),
     onSuccess: async () => {
       setFormError(null);
+      pushToast(feedbackMessages.repositoryUpdated());
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["repository", repositoryId] }),
         queryClient.invalidateQueries({ queryKey: ["repositories"] }),
@@ -99,13 +116,16 @@ export function RepositoryDetailsPage() {
       ]);
     },
     onError: (mutationError) => {
-      setFormError(mutationError instanceof Error ? mutationError.message : "Unable to update repository");
+      const message = mutationError instanceof Error ? mutationError.message : "Unable to update repository";
+      setFormError(message);
+      pushToast({ tone: "error", title: "Repository update failed", description: message });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => apiClient.deleteRepository(repositoryId),
     onSuccess: async () => {
+      pushToast(feedbackMessages.repositoryDeleted());
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["repositories"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
@@ -114,7 +134,9 @@ export function RepositoryDetailsPage() {
       navigate("/repositories", { replace: true });
     },
     onError: (mutationError) => {
-      setFormError(mutationError instanceof Error ? mutationError.message : "Unable to delete repository");
+      const message = mutationError instanceof Error ? mutationError.message : "Unable to delete repository";
+      setFormError(message);
+      pushToast({ tone: "error", title: "Repository delete failed", description: message });
     },
   });
 
@@ -183,6 +205,9 @@ export function RepositoryDetailsPage() {
 
   const { repository, scans } = query.data;
   const activeScan = scans.find((scan) => scan.status === "queued" || scan.status === "running");
+  const health = getRepositoryHealthState(repository);
+  const sourceLabel = getRepositorySourceLabel(repository);
+  const readinessLabel = getRepositoryReadinessLabel(repository);
 
   return (
     <div className="space-y-8">
@@ -202,12 +227,88 @@ export function RepositoryDetailsPage() {
         }
       />
 
-      {scanError ? <p className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{scanError}</p> : null}
+      {scanError ? <InlineMessage tone="error">{scanError}</InlineMessage> : null}
       {!scanError && activeScan ? (
-        <p className="rounded-xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+        <InlineMessage tone="info">
           {activeScan.status === "queued" ? "A scan is already queued for this repository." : "A scan is currently running for this repository."}
-        </p>
+        </InlineMessage>
       ) : null}
+
+      <Card className="overflow-hidden p-6 sm:p-7">
+        <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={repository.githubInstallationId || repository.githubRepositoryId ? "github_push" : "manual"}>
+                {getRepositoryConnectionLabel(repository)}
+              </Badge>
+              <Badge tone={health.tone}>{health.label}</Badge>
+              <Badge tone="info">{readinessLabel}</Badge>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.04] text-slate-100">
+                {repository.githubInstallationId || repository.githubRepositoryId ? (
+                  <GithubIcon className="h-5 w-5" />
+                ) : (
+                  <RepositoryIcon className="h-5 w-5" />
+                )}
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">{repository.owner}</p>
+                <h2 className="text-2xl font-semibold text-white sm:text-3xl">{repository.name}</h2>
+              </div>
+            </div>
+            <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400">
+              {repository.description || "Repository record prepared for scanning. Keep branch, source, and sample file context aligned so scan output stays trustworthy."}
+            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Owner</p>
+                <p className="mt-2 text-sm font-medium text-white">{repository.owner}</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Branch</p>
+                <p className="mt-2 flex items-center gap-2 text-sm font-medium text-white">
+                  <BranchIcon className="h-4 w-4 text-slate-400" />
+                  {repository.branch}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Source type</p>
+                <p className="mt-2 text-sm font-medium text-white">{sourceLabel}</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Last scan</p>
+                <p className="mt-2 flex items-center gap-2 text-sm font-medium text-white">
+                  <ClockIcon className="h-4 w-4 text-slate-400" />
+                  {formatRelativeTime(repository.lastScanAt)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="rounded-[1.5rem] border border-cyan-300/12 bg-[linear-gradient(135deg,rgba(8,47,73,0.48),rgba(2,6,23,0.92))] p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-300/90">Primary actions</p>
+              <div className="mt-4 flex flex-col gap-3">
+                <Button disabled={scanMutation.isPending || Boolean(activeScan)} onClick={() => scanMutation.mutate()}>
+                  {scanMutation.isPending ? "Queueing..." : activeScan ? "Scan in progress" : "Run scan"}
+                </Button>
+                <Button disabled={deleteMutation.isPending} onClick={handleDelete} variant="secondary">
+                  {deleteMutation.isPending ? "Deleting..." : "Delete repository"}
+                </Button>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-300">
+                Manual scans are the fastest way to validate repository setup. GitHub-triggered scans will appear automatically after integration events are flowing.
+              </p>
+            </div>
+            <HintPanel
+              icon={<SparkIcon className="h-4 w-4" />}
+              title="Repository state guide"
+              description="GitHub App connected means the record has installation context. Ready to scan is inferred from GitHub metadata or sample files. Health stays lightweight until the backend exposes richer sync and scan quality signals."
+              className="bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(8,47,73,0.42))]"
+            />
+          </div>
+        </div>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-4">
         <Card className="p-5">
@@ -232,6 +333,19 @@ export function RepositoryDetailsPage() {
           <p className="mt-3 text-lg font-semibold text-white">{formatRelativeTime(repository.lastScanAt)}</p>
           <p className="mt-2 text-sm text-slate-400">{formatDateTime(repository.lastScanAt)}</p>
         </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <HintPanel
+          icon={<GithubIcon className="h-4 w-4" />}
+          title="Source meaning"
+          description="GitHub App records are best for automatic push and PR scans. Manual records still support baseline analysis, especially when sample files model the code you want to inspect."
+        />
+        <HintPanel
+          icon={<RepositoryIcon className="h-4 w-4" />}
+          title="When to use manual scans"
+          description="Run a manual scan after editing metadata, branch, or sample files. It is the quickest feedback loop for verifying repository setup before waiting on webhook-driven activity."
+        />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.02fr_0.98fr]">
@@ -314,8 +428,8 @@ export function RepositoryDetailsPage() {
               </div>
             </div>
 
-            {formError ? <p className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{formError}</p> : null}
-            {!formError && validationMessage ? <p className="text-sm text-amber-300">{validationMessage}</p> : null}
+            {formError ? <InlineMessage tone="error">{formError}</InlineMessage> : null}
+            {!formError && validationMessage ? <InlineMessage tone="warning">{validationMessage}</InlineMessage> : null}
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-slate-400">Keep branch, repository ID, and sample files aligned so future scans remain debuggable.</p>

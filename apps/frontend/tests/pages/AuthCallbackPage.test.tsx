@@ -2,6 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AuthCallbackPage } from "../../src/pages/AuthCallbackPage";
 import { renderWithProviders, createAuthValue } from "../utils/render";
+import { consumeFlashFeedback } from "../../src/lib/feedback";
 
 const getSession = vi.fn();
 
@@ -41,6 +42,7 @@ describe("AuthCallbackPage", () => {
     });
 
     await waitFor(() => expect(auth.setStoredSession).toHaveBeenCalledWith(expect.objectContaining({ accessToken: "access" })));
+    expect(consumeFlashFeedback()).toMatchObject({ title: "GitHub connected" });
   });
 
   it("renders callback errors from the OAuth redirect", async () => {

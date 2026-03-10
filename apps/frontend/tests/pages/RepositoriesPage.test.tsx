@@ -66,6 +66,8 @@ describe("RepositoriesPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Use in form" }));
     await waitFor(() => expect(screen.getByDisplayValue("imported-repo")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Import metadata" }));
+    expect(await screen.findByText("Repository metadata imported")).toBeInTheDocument();
   });
 
   it("shows client validation instead of submitting invalid repository forms", async () => {
@@ -77,5 +79,32 @@ describe("RepositoriesPage", () => {
     await user.type(repositoryNameInput, "a");
     expect(screen.getByText("Repository name must be at least 2 characters")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save repository" })).toBeDisabled();
+  });
+
+  it("filters repositories by search text and source", async () => {
+    apiClientMock.getRepositories.mockResolvedValue({
+      repositories: [
+        makeRepository(),
+        makeRepository({
+          id: "repo-2",
+          name: "manual-lab",
+          owner: "solo",
+          githubInstallationId: null,
+          githubRepositoryId: null,
+        }),
+      ],
+    });
+    const user = userEvent.setup();
+
+    renderWithProviders(<RepositoriesPage />);
+
+    await user.type(await screen.findByPlaceholderText("Search by name, owner, branch, URL, or description"), "manual");
+    expect(screen.getByText("manual-lab")).toBeInTheDocument();
+    expect(screen.queryByText("review-platform")).not.toBeInTheDocument();
+
+    await user.clear(screen.getByPlaceholderText("Search by name, owner, branch, URL, or description"));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Source" }), "github");
+    expect(screen.getByText("review-platform")).toBeInTheDocument();
+    expect(screen.queryByText("manual-lab")).not.toBeInTheDocument();
   });
 });

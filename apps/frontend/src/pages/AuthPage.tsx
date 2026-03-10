@@ -7,7 +7,12 @@ import { validateAuthForm } from "../features/auth/validation";
 import { getSupabaseBrowserClient, isSupabaseOAuthConfigured } from "../lib/supabase";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { GithubIcon, GoogleIcon } from "../components/ui/icons";
 import { Input } from "../components/ui/Input";
+import { HintPanel } from "../components/ui/HintPanel";
+import { InlineMessage } from "../components/ui/InlineMessage";
+import { useToast } from "../components/ui/Toast";
+import { feedbackMessages } from "../lib/feedback";
 
 type Mode = "login" | "signup";
 const postAuthRedirectKey = "ai-review-post-auth-redirect";
@@ -20,7 +25,9 @@ export function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const { isAuthenticated, setAuthSession } = useAuth();
+  const { pushToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -45,10 +52,13 @@ export function AuthPage() {
           ? await apiClient.login({ email: email.trim().toLowerCase(), password })
           : await apiClient.signup({ email: email.trim().toLowerCase(), password, fullName: fullName.trim() });
       setAuthSession(payload);
+      pushToast(feedbackMessages.authSucceeded(mode));
       const nextRoute = (location.state as { from?: string } | null)?.from ?? "/dashboard";
       navigate(nextRoute, { replace: true });
     } catch (submissionError) {
-      setError(submissionError instanceof Error ? submissionError.message : "Unable to authenticate");
+      const message = submissionError instanceof Error ? submissionError.message : "Unable to authenticate";
+      setError(message);
+      pushToast(feedbackMessages.authFailed(message));
     } finally {
       setLoading(false);
     }
@@ -56,13 +66,17 @@ export function AuthPage() {
 
   const handleGitHubAuth = async () => {
     if (!isSupabaseOAuthConfigured) {
-      setError("GitHub OAuth is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the frontend env.");
+      const message = "GitHub OAuth is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the frontend env.";
+      setError(message);
+      pushToast(feedbackMessages.githubActionFailed(message));
       return;
     }
 
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
-      setError("GitHub OAuth client is unavailable");
+      const message = "GitHub OAuth client is unavailable";
+      setError(message);
+      pushToast(feedbackMessages.githubActionFailed(message));
       return;
     }
 
@@ -83,9 +97,25 @@ export function AuthPage() {
       if (oauthError) {
         throw oauthError;
       }
+      pushToast(feedbackMessages.githubConnectStarted());
     } catch (authError) {
-      setError(authError instanceof Error ? authError.message : "Unable to start GitHub sign-in");
+      const message = authError instanceof Error ? authError.message : "Unable to start GitHub sign-in";
+      setError(message);
+      pushToast(feedbackMessages.githubActionFailed(message));
       setGithubLoading(false);
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    setGoogleLoading(true);
+    setError(null);
+
+    try {
+      // Placeholder: wire this button to Supabase/Google OAuth once the provider is enabled in auth settings.
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+      setError("Google sign-in UI is ready. Connect the Google OAuth provider to enable this flow.");
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -101,7 +131,17 @@ export function AuthPage() {
       <div className="grid w-full max-w-6xl gap-6 lg:grid-cols-[1.08fr_0.92fr]">
         <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/60 p-8 backdrop-blur sm:p-10">
           <div className="absolute inset-y-0 right-0 hidden w-1/3 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.16),transparent_60%)] lg:block" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-300">Developer SaaS workspace</p>
+          <div className="flex items-center gap-3">
+            <img
+              alt="AI Review logo"
+              className="h-12 w-12 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 object-cover p-1"
+              src="/logo-trans.png"
+            />
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-300">AI Review</p>
+              <p className="mt-1 text-sm text-slate-400">Developer SaaS workspace</p>
+            </div>
+          </div>
           <h1 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight text-white sm:text-5xl">
             Review repositories, surface scan context, and triage issues with developer-grade clarity.
           </h1>
@@ -130,6 +170,13 @@ export function AuthPage() {
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">Built for engineering teams</span>
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">Responsive and maintainable</span>
           </div>
+          <div className="mt-6">
+            <HintPanel
+              title="Best first step"
+              description="Sign in with GitHub when possible. It shortens the path to repository import and future automatic scan events. Email and password still works well for manual repository workflows."
+              className="bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(8,47,73,0.42))]"
+            />
+          </div>
         </div>
         <Card className="p-6 sm:p-8">
           <div className="mb-6">
@@ -143,14 +190,14 @@ export function AuthPage() {
           </div>
           <div className="mb-6 flex rounded-full border border-white/10 bg-slate-950/70 p-1">
             <button
-              className={`flex-1 rounded-full px-4 py-2 text-sm font-medium transition ${mode === "login" ? "bg-cyan-300 text-slate-950 shadow-[0_10px_24px_rgba(34,211,238,0.18)]" : "text-slate-300 hover:text-white"}`}
+              className={`flex-1 rounded-full px-4 py-2 text-sm font-medium transition ${mode === "login" ? "bg-cyan-300 text-black shadow-[0_10px_24px_rgba(34,211,238,0.18)]" : "text-slate-300 hover:text-white"}`}
               onClick={() => setMode("login")}
               type="button"
             >
               Sign in
             </button>
             <button
-              className={`flex-1 rounded-full px-4 py-2 text-sm font-medium transition ${mode === "signup" ? "bg-cyan-300 text-slate-950 shadow-[0_10px_24px_rgba(34,211,238,0.18)]" : "text-slate-300 hover:text-white"}`}
+              className={`flex-1 rounded-full px-4 py-2 text-sm font-medium transition ${mode === "signup" ? "bg-cyan-300 text-black shadow-[0_10px_24px_rgba(34,211,238,0.18)]" : "text-slate-300 hover:text-white"}`}
               onClick={() => setMode("signup")}
               type="button"
             >
@@ -175,8 +222,8 @@ export function AuthPage() {
               </div>
               <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Minimum 8 characters" />
             </div>
-            {error ? <p className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</p> : null}
-            {!error && validationMessage ? <p className="text-sm text-amber-300">{validationMessage}</p> : null}
+            {error ? <InlineMessage tone="error">{error}</InlineMessage> : null}
+            {!error && validationMessage ? <InlineMessage tone="warning">{validationMessage}</InlineMessage> : null}
             <Button className="w-full" disabled={loading || Boolean(validationMessage)} type="submit">
               {loading ? "Working..." : mode === "login" ? "Sign in" : "Create account"}
             </Button>
@@ -188,14 +235,23 @@ export function AuthPage() {
                 <span className="bg-slate-950 px-3 text-xs uppercase tracking-[0.3em] text-slate-500">or</span>
               </div>
             </div>
-            <Button className="w-full" disabled={githubLoading} onClick={handleGitHubAuth} type="button" variant="secondary">
+            <Button className="w-full justify-start px-4" disabled={githubLoading} onClick={handleGitHubAuth} type="button" variant="secondary">
+              <GithubIcon className="h-4 w-4" />
               {githubLoading ? "Redirecting to GitHub..." : "Continue with GitHub"}
+            </Button>
+            <Button className="w-full justify-start px-4" disabled={googleLoading} onClick={() => void handleGoogleAuth()} type="button" variant="secondary">
+              <GoogleIcon className="h-4 w-4" />
+              {googleLoading ? "Preparing Google sign-in..." : "Continue with Google"}
             </Button>
             <div className="rounded-2xl border border-white/8 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
               <p className="font-medium text-slate-200">Why GitHub sign-in matters</p>
               <p className="mt-1 leading-6">
                 Use GitHub to streamline repository connection, installation-backed imports, and future pull request triggered scans.
               </p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
+              <p className="font-medium text-slate-200">What happens after sign-in</p>
+              <p className="mt-1 leading-6">Start by importing a GitHub repository or creating one manually. Manual scans give you a baseline immediately; GitHub events add automation after integration is live.</p>
             </div>
             {!isSupabaseOAuthConfigured ? (
               <p className="text-xs text-slate-500">GitHub OAuth becomes available after adding the frontend Supabase env variables.</p>

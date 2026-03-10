@@ -8,6 +8,7 @@ export interface StoredSession {
     id: string;
     email: string;
     fullName: string | null;
+    avatarUrl?: string | null;
   };
 }
 
@@ -31,4 +32,3 @@ export const sessionStorageService = {
     window.localStorage.removeItem(key);
   },
 };
-

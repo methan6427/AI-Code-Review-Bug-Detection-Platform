@@ -24,6 +24,13 @@ export const truncateMiddle = (value: string, leading = 8, trailing = 6) => {
   return `${value.slice(0, leading)}...${value.slice(-trailing)}`;
 };
 
+export const humanizeToken = (value: string) =>
+  value
+    .split(/[_-]/g)
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(" ");
+
 export const formatRelativeTime = (value: string | null) => {
   if (!value) {
     return "Not available";

@@ -43,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: profile.id,
             email: profile.email,
             fullName: profile.fullName,
+            avatarUrl: profile.avatarUrl,
           },
         };
 

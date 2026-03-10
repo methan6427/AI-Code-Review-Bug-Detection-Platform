@@ -22,9 +22,28 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 a {
   color: inherit;
   text-decoration: none;
+}
+
+:where(
+    a[href],
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]),
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"],
+    summary
+  ) {
+  cursor: pointer;
 }
 
 * {

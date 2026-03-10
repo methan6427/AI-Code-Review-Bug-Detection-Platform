@@ -4,6 +4,7 @@ import { render } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
 import { AuthContext } from "../../src/app/AuthContext";
+import { ToastProvider } from "../../src/components/ui/Toast";
 
 export const createAuthValue = (overrides: Partial<ContextType<typeof AuthContext>> = {}) => ({
   session: null,
@@ -36,13 +37,15 @@ export const renderWithProviders = (ui: ReactElement, options: RenderOptions = {
     queryClient,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <AuthContext.Provider value={options.auth ?? createAuthValue()}>
-          <MemoryRouter initialEntries={[options.route ?? "/"]}>
-            <Routes>
-              <Route path={options.path ?? "/"} element={ui} />
-            </Routes>
-          </MemoryRouter>
-        </AuthContext.Provider>
+        <ToastProvider>
+          <AuthContext.Provider value={options.auth ?? createAuthValue()}>
+            <MemoryRouter initialEntries={[options.route ?? "/"]}>
+              <Routes>
+                <Route path={options.path ?? "/"} element={ui} />
+              </Routes>
+            </MemoryRouter>
+          </AuthContext.Provider>
+        </ToastProvider>
       </QueryClientProvider>,
     ),
   };
