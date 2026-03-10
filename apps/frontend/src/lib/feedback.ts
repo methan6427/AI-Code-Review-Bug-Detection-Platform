@@ -49,6 +49,21 @@ export const feedbackMessages = {
     title: "Authentication failed",
     description: description ?? "Check your credentials or provider setup and try again.",
   }),
+  oauthRedirectStarted: (provider: string): FeedbackMessage => ({
+    tone: "info",
+    title: `Redirecting to ${provider}`,
+    description: `Complete the ${provider} authorization flow to finish signing in.`,
+  }),
+  oauthConnected: (provider: string): FeedbackMessage => ({
+    tone: "success",
+    title: `${provider} sign-in complete`,
+    description: "Your workspace session is active.",
+  }),
+  oauthActionFailed: (provider: string, description?: string): FeedbackMessage => ({
+    tone: "error",
+    title: `${provider} sign-in failed`,
+    description: description ?? `Check your ${provider} provider setup and try again.`,
+  }),
   githubConnectStarted: (): FeedbackMessage => ({
     tone: "info",
     title: "Redirecting to GitHub",
@@ -68,7 +83,7 @@ export const feedbackMessages = {
     tone: "info",
     title: label,
   }),
-} satisfies Record<string, (...args: unknown[]) => FeedbackMessage>;
+} satisfies Record<string, (...args: any[]) => FeedbackMessage>;
 
 export const storeFlashFeedback = (message: FeedbackMessage) => {
   window.localStorage.setItem(flashFeedbackKey, JSON.stringify(message));

@@ -15,13 +15,13 @@ export function AuthCallbackPage() {
 
   useEffect(() => {
     if (!isSupabaseOAuthConfigured) {
-      setError("GitHub OAuth is not configured for the frontend");
+      setError("OAuth is not configured for the frontend");
       return;
     }
 
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
-      setError("GitHub OAuth client is unavailable");
+      setError("OAuth client is unavailable");
       return;
     }
 
@@ -55,7 +55,7 @@ export function AuthCallbackPage() {
         }
 
         if (!finalSession) {
-          throw new Error("GitHub sign-in did not return a session");
+          throw new Error("OAuth sign-in did not return a session");
         }
 
         setStoredSession({
@@ -82,14 +82,18 @@ export function AuthCallbackPage() {
 
         const redirectTarget = window.localStorage.getItem(postAuthRedirectKey) || nextRoute;
         window.localStorage.removeItem(postAuthRedirectKey);
-        storeFlashFeedback(feedbackMessages.githubConnected());
+        const providerName =
+          typeof finalSession.user.app_metadata.provider === "string"
+            ? finalSession.user.app_metadata.provider.charAt(0).toUpperCase() + finalSession.user.app_metadata.provider.slice(1)
+            : "OAuth";
+        storeFlashFeedback(feedbackMessages.oauthConnected(providerName));
         navigate(redirectTarget, { replace: true });
       } catch (callbackError) {
         if (!active) {
           return;
         }
 
-        setError(callbackError instanceof Error ? callbackError.message : "Unable to complete GitHub sign-in");
+        setError(callbackError instanceof Error ? callbackError.message : "Unable to complete OAuth sign-in");
       }
     })();
 
@@ -101,13 +105,13 @@ export function AuthCallbackPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_22%),linear-gradient(180deg,#020617_0%,#020617_100%)] px-4 py-10">
       <div className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-slate-950/60 p-8 text-center backdrop-blur">
-        <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">GitHub OAuth</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">OAuth</p>
         <h1 className="mt-4 text-3xl font-semibold text-white">{error ? "Sign-in failed" : "Completing sign-in"}</h1>
         <div className="mt-4">
           {error ? (
             <InlineMessage tone="error">{error}</InlineMessage>
           ) : (
-            <InlineMessage tone="info">Exchanging your GitHub authorization with Supabase and preparing the app session.</InlineMessage>
+            <InlineMessage tone="info">Exchanging your provider authorization with Supabase and preparing the app session.</InlineMessage>
           )}
         </div>
       </div>

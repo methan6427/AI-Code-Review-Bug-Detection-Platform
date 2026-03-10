@@ -107,14 +107,44 @@ export function AuthPage() {
   };
 
   const handleGoogleAuth = async () => {
+    if (!isSupabaseOAuthConfigured) {
+      const message = "Google OAuth is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the frontend env.";
+      setError(message);
+      pushToast(feedbackMessages.oauthActionFailed("Google", message));
+      return;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      const message = "Google OAuth client is unavailable";
+      setError(message);
+      pushToast(feedbackMessages.oauthActionFailed("Google", message));
+      return;
+    }
+
     setGoogleLoading(true);
     setError(null);
 
     try {
-      // Placeholder: wire this button to Supabase/Google OAuth once the provider is enabled in auth settings.
-      await new Promise((resolve) => window.setTimeout(resolve, 250));
-      setError("Google sign-in UI is ready. Connect the Google OAuth provider to enable this flow.");
-    } finally {
+      const nextRoute = (location.state as { from?: string } | null)?.from ?? "/dashboard";
+      window.localStorage.setItem(postAuthRedirectKey, nextRoute);
+
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (oauthError) {
+        throw oauthError;
+      }
+
+      pushToast(feedbackMessages.oauthRedirectStarted("Google"));
+    } catch (authError) {
+      const message = authError instanceof Error ? authError.message : "Unable to start Google sign-in";
+      setError(message);
+      pushToast(feedbackMessages.oauthActionFailed("Google", message));
       setGoogleLoading(false);
     }
   };
@@ -241,7 +271,7 @@ export function AuthPage() {
             </Button>
             <Button className="w-full justify-start px-4" disabled={googleLoading} onClick={() => void handleGoogleAuth()} type="button" variant="secondary">
               <GoogleIcon className="h-4 w-4" />
-              {googleLoading ? "Preparing Google sign-in..." : "Continue with Google"}
+              {googleLoading ? "Redirecting to Google..." : "Continue with Google"}
             </Button>
             <div className="rounded-2xl border border-white/8 bg-slate-950/50 px-4 py-3 text-sm text-slate-400">
               <p className="font-medium text-slate-200">Why GitHub sign-in matters</p>
