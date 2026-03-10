@@ -12,6 +12,7 @@ import type {
   RepositoryDetailResponse,
   Scan,
   ScanDetailResponse,
+  UpdateIssueStatusResponse,
   UpdateRepositoryRequest,
 } from "@ai-review/shared";
 import { sessionStorageService } from "./storage";
@@ -179,5 +180,12 @@ export const apiClient = {
         authenticated: true,
       },
     );
+  },
+  updateIssueStatus(id: string, status: Issue["status"]) {
+    return request<UpdateIssueStatusResponse>(`/issues/${id}/status`, {
+      method: "PATCH",
+      authenticated: true,
+      body: JSON.stringify({ status }),
+    });
   },
 };

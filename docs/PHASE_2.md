@@ -13,6 +13,10 @@ Started on March 9, 2026:
 - GitHub OAuth sign-in has been added through Supabase with a dedicated frontend callback route.
 - GitHub account linking and signed webhook ingestion have been added as the next integration foundation.
 - GitHub App installation discovery and installation-backed repository import are now wired into the product.
+- Scan execution now runs through a dedicated worker process with queued job polling.
+- Branch, commit, pull request, and changed-file scan context is now persisted and shown in scan details.
+- Scan retries, execution-event logging, and GitHub check-run reporting are now implemented for GitHub-backed scans.
+- GitHub App installation tokens are now used for repository cloning and GitHub check publication when repositories are linked to an installation.
 
 ## 1. GitHub Integration
 

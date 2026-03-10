@@ -5,6 +5,8 @@ export const defaultRepositoryFormValues = {
   owner: "",
   branch: "main",
   githubUrl: "",
+  githubInstallationId: "",
+  githubRepositoryId: "",
   accessTokenHint: "",
   description: "",
   applicationCode: `export function boot(input: string) {
@@ -46,6 +48,8 @@ export const mapRepositoryFormToCreateRequest = (input: typeof defaultRepository
   owner: input.owner.trim(),
   branch: input.branch.trim(),
   githubUrl: input.githubUrl.trim(),
+  githubInstallationId: input.githubInstallationId ? Number(input.githubInstallationId) : undefined,
+  githubRepositoryId: input.githubRepositoryId ? Number(input.githubRepositoryId) : undefined,
   accessTokenHint: input.accessTokenHint.trim() || undefined,
   description: input.description.trim() || undefined,
   sampleFiles: buildRepositorySampleFiles(input.applicationCode, input.packageJson),
@@ -84,6 +88,8 @@ export const mapRepositoryFormToUpdateRequest = (input: {
   owner: string;
   branch: string;
   githubUrl: string;
+  githubInstallationId: string;
+  githubRepositoryId: string;
   accessTokenHint: string;
   description: string;
   sampleFilesJson: string;
@@ -92,6 +98,8 @@ export const mapRepositoryFormToUpdateRequest = (input: {
   owner: input.owner.trim(),
   branch: input.branch.trim(),
   githubUrl: input.githubUrl.trim(),
+  githubInstallationId: input.githubInstallationId ? Number(input.githubInstallationId) : undefined,
+  githubRepositoryId: input.githubRepositoryId ? Number(input.githubRepositoryId) : undefined,
   accessTokenHint: input.accessTokenHint.trim() || undefined,
   description: input.description.trim() || undefined,
   sampleFiles: parseSampleFilesJson(input.sampleFilesJson),

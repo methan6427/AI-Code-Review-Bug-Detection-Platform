@@ -7,3 +7,10 @@ export const issueQuerySchema = z.object({
   status: z.enum(issueStatuses).optional(),
 });
 
+export const issueIdParamSchema = z.object({
+  id: z.string().uuid(),
+});
+
+export const updateIssueStatusSchema = z.object({
+  status: z.enum(issueStatuses),
+});

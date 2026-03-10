@@ -21,6 +21,8 @@ export interface Repository {
   owner: string;
   branch: string;
   githubUrl: string;
+  githubInstallationId: number | null;
+  githubRepositoryId: number | null;
   accessTokenHint: string | null;
   description: string | null;
   sampleFiles: SampleFile[];
@@ -39,17 +41,44 @@ export interface ScanSummary {
   categories: Record<IssueCategory, number>;
 }
 
+export interface ScanContext {
+  source: "manual" | "github_push" | "github_pull_request";
+  branch: string | null;
+  commitSha: string | null;
+  baseBranch: string | null;
+  baseCommitSha: string | null;
+  installationId: number | null;
+  pullRequestNumber: number | null;
+  changedFiles: string[];
+  sourceType: "sample_files" | "git_clone" | null;
+}
+
 export interface Scan {
   id: string;
   repositoryId: string;
   triggeredBy: string;
   status: ScanStatus;
+  context: ScanContext;
+  attemptCount: number;
+  maxAttempts: number;
+  nextRetryAt: string | null;
+  lastErrorAt: string | null;
   summary: Partial<ScanSummary>;
   errorMessage: string | null;
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ScanEvent {
+  id: string;
+  scanId: string;
+  level: "info" | "warn" | "error";
+  stage: string;
+  message: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface Issue {
@@ -81,4 +110,3 @@ export interface DashboardSummary {
   recentScans: Array<Scan & { repositoryName: string; repositoryOwner: string }>;
   repositories: Repository[];
 }
-

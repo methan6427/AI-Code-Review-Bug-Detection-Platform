@@ -70,6 +70,8 @@ export function RepositoriesPage() {
         owner: repository.owner,
         branch: repository.branch,
         githubUrl: repository.githubUrl,
+        githubInstallationId: repository.githubInstallationId ? String(repository.githubInstallationId) : "",
+        githubRepositoryId: repository.githubRepositoryId ? String(repository.githubRepositoryId) : "",
         description: repository.description ?? "",
       }));
     },
@@ -116,11 +118,13 @@ export function RepositoriesPage() {
   };
 
   const handleUseInstallationRepository = (repository: {
+    id: number;
     name: string;
     owner: string;
     defaultBranch: string;
     htmlUrl: string;
     description: string | null;
+    installationId: number;
   }) => {
     setForm((currentForm) => ({
       ...currentForm,
@@ -128,6 +132,8 @@ export function RepositoriesPage() {
       owner: repository.owner,
       branch: repository.defaultBranch,
       githubUrl: repository.htmlUrl,
+      githubInstallationId: String(repository.installationId),
+      githubRepositoryId: String(repository.id),
       description: repository.description ?? "",
     }));
   };

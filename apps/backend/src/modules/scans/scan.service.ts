@@ -1,112 +1,19 @@
-import type { AnalysisIssue, ScanExecutionResult, ScanOrchestrator } from "../../services/analysis/types";
-import { PlaceholderAIAnalysisService } from "../../services/analysis/PlaceholderAIAnalysisService";
-import { RuleBasedStaticAnalysisService } from "../../services/analysis/RuleBasedStaticAnalysisService";
-import { buildSummary } from "../../services/analysis/summary";
-import { RepositoryService } from "../repositories/repository.service";
+import type { ScanContext } from "@ai-review/shared";
+import { env } from "../../config/env";
 import type { IssueRow, ScanRow } from "../../types/database";
 import { mapIssue, mapScan } from "../../utils/mappers";
 import { badRequest, conflict, notFound } from "../../utils/http";
 import { supabaseAdmin } from "../../services/supabase/client";
+import { RepositoryService } from "../repositories/repository.service";
+import { buildScanContext, type CreateScanContextInput } from "./scan-context";
+import { ScanEventService } from "./scan-event.service";
 
-const staticAnalysisService = new RuleBasedStaticAnalysisService();
-const aiAnalysisService = new PlaceholderAIAnalysisService();
 const repositoryService = new RepositoryService();
-
-class DefaultScanOrchestrator implements ScanOrchestrator {
-  async runScan(input: { repositoryId: string; scanId: string; triggeredBy: string }): Promise<void> {
-    const now = new Date().toISOString();
-
-    const runningResult = await supabaseAdmin
-      .from("scans")
-      .update({ status: "running", started_at: now })
-      .eq("id", input.scanId);
-    if (runningResult.error) {
-      throw badRequest(runningResult.error.message);
-    }
-
-    try {
-      const repository = await repositoryService.getOwnedRepository(input.triggeredBy, input.repositoryId);
-      const context = {
-        repositoryId: repository.id,
-        files: repository.sampleFiles,
-      };
-
-      const staticIssues = await staticAnalysisService.analyze(context);
-      const aiIssues = await aiAnalysisService.analyze(context);
-      const result = this.buildExecutionResult([...staticIssues, ...aiIssues]);
-
-      const deleteResult = await supabaseAdmin.from("issues").delete().eq("scan_id", input.scanId);
-      if (deleteResult.error) {
-        throw badRequest(deleteResult.error.message);
-      }
-
-      if (result.issues.length > 0) {
-        const insertResult = await supabaseAdmin.from("issues").insert(
-          result.issues.map((issue) => ({
-            scan_id: input.scanId,
-            repository_id: repository.id,
-            severity: issue.severity,
-            category: issue.category,
-            status: "open",
-            title: issue.title,
-            description: issue.description,
-            recommendation: issue.recommendation,
-            file_path: issue.filePath,
-            line_number: issue.lineNumber,
-            rule_code: issue.ruleCode,
-            metadata: issue.metadata ?? {},
-          })),
-        );
-        if (insertResult.error) {
-          throw badRequest(insertResult.error.message);
-        }
-      }
-
-      const completedAt = new Date().toISOString();
-
-      const completeResult = await supabaseAdmin
-        .from("scans")
-        .update({
-          status: "completed",
-          summary: result.summary,
-          completed_at: completedAt,
-        })
-        .eq("id", input.scanId);
-      if (completeResult.error) {
-        throw badRequest(completeResult.error.message);
-      }
-
-      await repositoryService.markLastScan(repository.id, completedAt);
-    } catch (error) {
-      const failureResult = await supabaseAdmin
-        .from("scans")
-        .update({
-          status: "failed",
-          error_message: error instanceof Error ? error.message : "Scan failed",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", input.scanId);
-      if (failureResult.error) {
-        throw badRequest(failureResult.error.message);
-      }
-
-      throw error;
-    }
-  }
-
-  private buildExecutionResult(issues: AnalysisIssue[]): ScanExecutionResult {
-    return {
-      issues,
-      summary: buildSummary(issues),
-    };
-  }
-}
-
-const orchestrator = new DefaultScanOrchestrator();
+const scanEventService = new ScanEventService();
 
 export class ScanService {
-  async createScan(userId: string, repositoryId: string) {
-    await repositoryService.getOwnedRepository(userId, repositoryId);
+  async createScan(userId: string, repositoryId: string, contextInput?: CreateScanContextInput) {
+    const repository = await repositoryService.getOwnedRepository(userId, repositoryId);
     const activeScan = await this.getActiveScan(repositoryId);
     if (activeScan) {
       throw conflict("A scan is already queued or running for this repository");
@@ -119,6 +26,8 @@ export class ScanService {
         triggered_by: userId,
         status: "queued",
         error_message: null,
+        scan_context: buildScanContext(repository.branch, contextInput),
+        max_attempts: env.SCAN_MAX_ATTEMPTS,
       })
       .select("*")
       .single<ScanRow>();
@@ -128,7 +37,16 @@ export class ScanService {
     }
 
     const scan = mapScan(data);
-    void orchestrator.runScan({ repositoryId, scanId: scan.id, triggeredBy: userId });
+    await scanEventService.record(scan.id, {
+      level: "info",
+      stage: "queued",
+      message: "Scan queued for worker execution",
+      metadata: {
+        source: scan.context.source,
+        branch: scan.context.branch,
+        commitSha: scan.context.commitSha,
+      },
+    });
 
     return scan;
   }
@@ -177,11 +95,75 @@ export class ScanService {
       throw badRequest(issueError.message);
     }
 
+    const events = await scanEventService.listByScan(scanId);
+
     return {
       scan: mapScan(scanData),
       repository,
       issues: (issueData ?? []).map(mapIssue),
+      events,
     };
+  }
+
+  async claimNextQueuedScan() {
+    const now = new Date().toISOString();
+    const { data: queuedScan, error: queuedError } = await supabaseAdmin
+      .from("scans")
+      .select("*")
+      .eq("status", "queued")
+      .or(`next_retry_at.is.null,next_retry_at.lte.${now}`)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle<ScanRow>();
+
+    if (queuedError) {
+      throw badRequest(queuedError.message);
+    }
+
+    if (!queuedScan) {
+      return null;
+    }
+
+    const startedAt = new Date().toISOString();
+    const { data, error } = await supabaseAdmin
+      .from("scans")
+      .update({
+        status: "running",
+        started_at: startedAt,
+        error_message: null,
+        next_retry_at: null,
+        attempt_count: queuedScan.attempt_count + 1,
+      })
+      .eq("id", queuedScan.id)
+      .eq("status", "queued")
+      .select("*")
+      .maybeSingle<ScanRow>();
+
+    if (error) {
+      throw badRequest(error.message);
+    }
+
+    const claimed = data ? mapScan(data) : null;
+    if (claimed) {
+      await scanEventService.record(claimed.id, {
+        level: "info",
+        stage: "claimed",
+        message: "Worker claimed queued scan",
+        metadata: {
+          attempt: claimed.attemptCount,
+          maxAttempts: claimed.maxAttempts,
+        },
+      });
+    }
+
+    return claimed;
+  }
+
+  async updateContext(scanId: string, context: ScanContext) {
+    const { error } = await supabaseAdmin.from("scans").update({ scan_context: context }).eq("id", scanId);
+    if (error) {
+      throw badRequest(error.message);
+    }
   }
 
   private async getActiveScan(repositoryId: string) {

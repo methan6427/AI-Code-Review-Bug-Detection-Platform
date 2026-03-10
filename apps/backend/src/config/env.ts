@@ -27,6 +27,9 @@ const envSchema = z.object({
   GITHUB_APP_CLIENT_SECRET: z.string().min(1).optional(),
   GITHUB_APP_PRIVATE_KEY: z.string().min(1).optional(),
   GITHUB_WEBHOOK_SECRET: z.string().min(1).optional(),
+  SCAN_WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(3000),
+  SCAN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  SCAN_RETRY_BASE_DELAY_MS: z.coerce.number().int().positive().default(5000),
 });
 
 const envResult = envSchema.safeParse(process.env);

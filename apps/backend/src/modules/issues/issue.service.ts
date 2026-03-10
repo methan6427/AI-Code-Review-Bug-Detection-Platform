@@ -45,4 +45,36 @@ export class IssueService {
 
     return (data ?? []).map(mapIssue);
   }
+
+  async updateStatus(userId: string, issueId: string, status: IssueRow["status"]) {
+    const repositoryIds = await repositoryService.listOwnedRepositoryIds(userId);
+    if (repositoryIds.length === 0) {
+      throw notFound("Issue not found");
+    }
+
+    const issueLookup = await supabaseAdmin
+      .from("issues")
+      .select("*")
+      .eq("id", issueId)
+      .in("repository_id", repositoryIds)
+      .single<IssueRow>();
+
+    if (issueLookup.error || !issueLookup.data) {
+      throw notFound("Issue not found");
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from("issues")
+      .update({ status })
+      .eq("id", issueId)
+      .in("repository_id", repositoryIds)
+      .select("*")
+      .single<IssueRow>();
+
+    if (error || !data) {
+      throw badRequest(error?.message ?? "Unable to update issue status");
+    }
+
+    return mapIssue(data);
+  }
 }

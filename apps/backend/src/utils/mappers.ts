@@ -1,5 +1,17 @@
-import type { Issue, Profile, Repository, Scan } from "@ai-review/shared";
-import type { IssueRow, ProfileRow, RepositoryRow, ScanRow } from "../types/database";
+import type { Issue, Profile, Repository, Scan, ScanEvent } from "@ai-review/shared";
+import type { IssueRow, ProfileRow, RepositoryRow, ScanEventRow, ScanRow } from "../types/database";
+
+const defaultScanContext = {
+  source: "manual",
+  branch: null,
+  commitSha: null,
+  baseBranch: null,
+  baseCommitSha: null,
+  installationId: null,
+  pullRequestNumber: null,
+  changedFiles: [],
+  sourceType: null,
+} as const;
 
 export const mapProfile = (row: ProfileRow): Profile => ({
   id: row.id,
@@ -17,6 +29,8 @@ export const mapRepository = (row: RepositoryRow): Repository => ({
   owner: row.owner,
   branch: row.branch,
   githubUrl: row.github_url,
+  githubInstallationId: row.github_installation_id,
+  githubRepositoryId: row.github_repository_id,
   accessTokenHint: row.access_token_hint,
   description: row.description,
   sampleFiles: row.sample_files,
@@ -30,6 +44,18 @@ export const mapScan = (row: ScanRow): Scan => ({
   repositoryId: row.repository_id,
   triggeredBy: row.triggered_by,
   status: row.status,
+  context: {
+    ...defaultScanContext,
+    ...(row.scan_context ?? {}),
+    installationId: typeof row.scan_context?.installationId === "number" ? row.scan_context.installationId : null,
+    changedFiles: Array.isArray(row.scan_context?.changedFiles)
+      ? row.scan_context.changedFiles.filter((value): value is string => typeof value === "string")
+      : [],
+  },
+  attemptCount: row.attempt_count,
+  maxAttempts: row.max_attempts,
+  nextRetryAt: row.next_retry_at,
+  lastErrorAt: row.last_error_at,
   summary: row.summary,
   errorMessage: row.error_message,
   startedAt: row.started_at,
@@ -55,3 +81,12 @@ export const mapIssue = (row: IssueRow): Issue => ({
   createdAt: row.created_at,
 });
 
+export const mapScanEvent = (row: ScanEventRow): ScanEvent => ({
+  id: row.id,
+  scanId: row.scan_id,
+  level: row.level,
+  stage: row.stage,
+  message: row.message,
+  metadata: row.metadata,
+  createdAt: row.created_at,
+});

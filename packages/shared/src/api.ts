@@ -1,5 +1,5 @@
 import type { IssueCategory, IssueSeverity, IssueStatus } from "./enums";
-import type { DashboardSummary, Issue, Profile, Repository, SampleFile, Scan } from "./scan";
+import type { DashboardSummary, Issue, Profile, Repository, SampleFile, Scan, ScanEvent } from "./scan";
 
 export interface AuthResponse {
   user: {
@@ -34,6 +34,8 @@ export interface CreateRepositoryRequest {
   owner: string;
   branch: string;
   githubUrl: string;
+  githubInstallationId?: number;
+  githubRepositoryId?: number;
   accessTokenHint?: string;
   description?: string;
   sampleFiles?: SampleFile[];
@@ -50,6 +52,8 @@ export interface ImportedGithubRepository {
   owner: string;
   branch: string;
   githubUrl: string;
+  githubInstallationId: number | null;
+  githubRepositoryId: number | null;
   description: string | null;
 }
 
@@ -91,12 +95,21 @@ export interface ScanDetailResponse {
   scan: Scan;
   repository: Repository;
   issues: Issue[];
+  events: ScanEvent[];
 }
 
 export interface IssueFilters {
   severity?: IssueSeverity;
   category?: IssueCategory;
   status?: IssueStatus;
+}
+
+export interface UpdateIssueStatusRequest {
+  status: IssueStatus;
+}
+
+export interface UpdateIssueStatusResponse {
+  issue: Issue;
 }
 
 export interface DashboardSummaryResponse {

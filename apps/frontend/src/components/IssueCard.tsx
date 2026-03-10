@@ -1,8 +1,15 @@
 import type { Issue } from "@ai-review/shared";
 import { Badge } from "./ui/Badge";
+import { Button } from "./ui/Button";
 import { Card } from "./ui/Card";
 
-export function IssueCard({ issue }: { issue: Issue }) {
+type IssueCardProps = {
+  issue: Issue;
+  onStatusChange?: (status: Issue["status"]) => void;
+  isUpdating?: boolean;
+};
+
+export function IssueCard({ issue, onStatusChange, isUpdating = false }: IssueCardProps) {
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -33,6 +40,29 @@ export function IssueCard({ issue }: { issue: Issue }) {
         <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Recommendation</p>
         <p className="mt-2 text-sm text-slate-300">{issue.recommendation}</p>
       </div>
+      {onStatusChange ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button disabled={isUpdating || issue.status === "open"} onClick={() => onStatusChange("open")} type="button" variant="ghost">
+            Reopen
+          </Button>
+          <Button
+            disabled={isUpdating || issue.status === "resolved"}
+            onClick={() => onStatusChange("resolved")}
+            type="button"
+            variant="secondary"
+          >
+            Mark resolved
+          </Button>
+          <Button
+            disabled={isUpdating || issue.status === "ignored"}
+            onClick={() => onStatusChange("ignored")}
+            type="button"
+            variant="ghost"
+          >
+            Ignore
+          </Button>
+        </div>
+      ) : null}
     </Card>
   );
 }

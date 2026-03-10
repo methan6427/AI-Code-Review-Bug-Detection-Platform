@@ -2,6 +2,7 @@ import { createSign } from "node:crypto";
 import type { GithubInstallation, GithubInstallationRepository } from "@ai-review/shared";
 import { env } from "../../config/env";
 import { badRequest } from "../../utils/http";
+import { logger } from "../../utils/logger";
 
 type GithubAppInstallationResponse = {
   id?: unknown;
@@ -26,6 +27,32 @@ type GithubInstallationRepositoriesResponse = {
     owner?: {
       login?: unknown;
     };
+  }>;
+};
+
+type GithubCheckRunResponse = {
+  id?: unknown;
+};
+
+type CreateGithubCheckRunInput = {
+  installationId: number;
+  owner: string;
+  repository: string;
+  headSha: string;
+  name: string;
+  summary: string;
+  text?: string;
+  title?: string;
+  conclusion: "success" | "failure" | "neutral" | "action_required";
+  externalId?: string;
+  annotations?: Array<{
+    path: string;
+    start_line: number;
+    end_line: number;
+    annotation_level: "failure" | "warning" | "notice";
+    message: string;
+    title?: string;
+    raw_details?: string;
   }>;
 };
 
@@ -111,14 +138,23 @@ export class GithubIntegrationService {
       .filter((repository): repository is GithubInstallationRepository => repository !== null);
   }
 
-  private async createInstallationAccessToken(installationId: number) {
+  async createInstallationAccessToken(installationId: number) {
+    logger.info("Requesting GitHub installation access token", {
+      installationId,
+    });
     const response = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
       method: "POST",
       headers: this.getGithubAppHeaders(),
     });
 
     if (!response.ok) {
-      throw badRequest("Unable to create a GitHub App installation access token");
+      const details = await this.readGithubErrorResponse(response);
+      logger.warn("GitHub installation access token request failed", {
+        installationId,
+        status: response.status,
+        details,
+      });
+      throw badRequest(`Unable to create a GitHub App installation access token (${response.status})${details ? `: ${details}` : ""}`);
     }
 
     const payload = (await response.json()) as { token?: unknown };
@@ -127,6 +163,71 @@ export class GithubIntegrationService {
     }
 
     return payload.token;
+  }
+
+  async createCheckRun(input: CreateGithubCheckRunInput) {
+    logger.info("Creating GitHub check run", {
+      installationId: input.installationId,
+      owner: input.owner,
+      repository: input.repository,
+      headSha: input.headSha,
+      conclusion: input.conclusion,
+      annotationCount: input.annotations?.length ?? 0,
+      externalId: input.externalId ?? null,
+    });
+    const accessToken = await this.createInstallationAccessToken(input.installationId);
+    const response = await fetch(`https://api.github.com/repos/${input.owner}/${input.repository}/check-runs`, {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${accessToken}`,
+        "User-Agent": "ai-code-review-platform",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: input.name,
+        head_sha: input.headSha,
+        status: "completed",
+        conclusion: input.conclusion,
+        completed_at: new Date().toISOString(),
+        external_id: input.externalId,
+        output: {
+          title: input.title ?? input.name,
+          summary: input.summary,
+          text: input.text,
+          annotations: input.annotations?.slice(0, 50),
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const details = await this.readGithubErrorResponse(response);
+      logger.warn("GitHub check run creation failed", {
+        installationId: input.installationId,
+        owner: input.owner,
+        repository: input.repository,
+        headSha: input.headSha,
+        status: response.status,
+        details,
+      });
+      throw badRequest(`Unable to create a GitHub check run (${response.status})${details ? `: ${details}` : ""}`);
+    }
+
+    const payload = (await response.json()) as GithubCheckRunResponse;
+    if (typeof payload.id !== "number") {
+      throw badRequest("GitHub check run response was invalid");
+    }
+
+    logger.info("GitHub check run created", {
+      installationId: input.installationId,
+      owner: input.owner,
+      repository: input.repository,
+      headSha: input.headSha,
+      checkRunId: payload.id,
+    });
+
+    return payload.id;
   }
 
   private async githubAppRequest(path: string) {
@@ -175,5 +276,28 @@ export class GithubIntegrationService {
 
   private base64UrlEncode(value: object) {
     return Buffer.from(JSON.stringify(value)).toString("base64url");
+  }
+
+  private async readGithubErrorResponse(response: Response) {
+    const text = await response.text();
+    if (!text) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(text) as { message?: unknown; errors?: unknown };
+      const parts = [
+        typeof parsed.message === "string" ? parsed.message : null,
+        Array.isArray(parsed.errors) ? JSON.stringify(parsed.errors) : null,
+      ].filter((value): value is string => Boolean(value));
+
+      if (parts.length > 0) {
+        return parts.join(" | ").slice(0, 1000);
+      }
+    } catch {
+      return text.slice(0, 1000);
+    }
+
+    return text.slice(0, 1000);
   }
 }

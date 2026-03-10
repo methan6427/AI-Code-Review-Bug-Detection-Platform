@@ -25,6 +25,8 @@ export function RepositoryDetailsPage() {
     owner: "",
     branch: "main",
     githubUrl: "",
+    githubInstallationId: "",
+    githubRepositoryId: "",
     accessTokenHint: "",
     description: "",
     sampleFilesJson: "[]",
@@ -62,6 +64,8 @@ export function RepositoryDetailsPage() {
       owner: repository.owner,
       branch: repository.branch,
       githubUrl: repository.githubUrl,
+      githubInstallationId: repository.githubInstallationId ? String(repository.githubInstallationId) : "",
+      githubRepositoryId: repository.githubRepositoryId ? String(repository.githubRepositoryId) : "",
       accessTokenHint: repository.accessTokenHint ?? "",
       description: repository.description ?? "",
       sampleFilesJson: stringifySampleFiles(repository.sampleFiles),
@@ -228,6 +232,16 @@ export function RepositoryDetailsPage() {
               <div>
                 <label className="mb-2 block text-sm text-slate-400">GitHub URL</label>
                 <Input value={form.githubUrl} onChange={(event) => setForm({ ...form, githubUrl: event.target.value })} />
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm text-slate-400">GitHub installation id</label>
+                <Input value={form.githubInstallationId} onChange={(event) => setForm({ ...form, githubInstallationId: event.target.value })} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-slate-400">GitHub repository id</label>
+                <Input value={form.githubRepositoryId} onChange={(event) => setForm({ ...form, githubRepositoryId: event.target.value })} />
               </div>
             </div>
             <div>

@@ -1,3 +1,4 @@
+import type { ScanContext } from "@ai-review/shared";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "../../config/env";
 import { ScanService } from "../scans/scan.service";
@@ -22,7 +23,13 @@ export type GithubWebhookPayload = {
     base?: { ref?: unknown; sha?: unknown };
   };
   ref?: unknown;
+  before?: unknown;
   after?: unknown;
+  commits?: Array<{
+    added?: unknown;
+    modified?: unknown;
+    removed?: unknown;
+  }>;
   sender?: { login?: unknown };
   zen?: unknown;
 } | null;
@@ -82,7 +89,7 @@ export class GithubService {
         return { accepted: true, event: eventName, action: metadata.action };
 
       case "pull_request":
-        await this.triggerRepositoryScansFromWebhook(payload);
+        await this.triggerRepositoryScansFromWebhook(payload, this.buildPullRequestScanContext(payload));
         logger.info("GitHub pull request event received", {
           ...metadata,
           pullRequestNumber: typeof payload?.pull_request?.number === "number" ? payload.pull_request.number : null,
@@ -92,7 +99,7 @@ export class GithubService {
         return { accepted: true, event: eventName, action: metadata.action };
 
       case "push":
-        await this.triggerRepositoryScansFromWebhook(payload);
+        await this.triggerRepositoryScansFromWebhook(payload, this.buildPushScanContext(payload));
         logger.info("GitHub push event received", {
           ...metadata,
           ref: typeof payload?.ref === "string" ? payload.ref : null,
@@ -106,9 +113,10 @@ export class GithubService {
     }
   }
 
-  private async triggerRepositoryScansFromWebhook(payload: GithubWebhookPayload) {
+  private async triggerRepositoryScansFromWebhook(payload: GithubWebhookPayload, scanContext: Partial<ScanContext>) {
     const owner = typeof payload?.repository?.full_name === "string" ? payload.repository.full_name.split("/")[0] : null;
     const name = typeof payload?.repository?.name === "string" ? payload.repository.name : null;
+    const installationId = typeof payload?.installation?.id === "number" ? payload.installation.id : null;
 
     if (!owner || !name) {
       return;
@@ -118,7 +126,20 @@ export class GithubService {
     await Promise.all(
       repositories.map(async (repository) => {
         try {
-          await this.scanService.createScan(repository.userId, repository.id);
+          if (installationId && repository.githubInstallationId && repository.githubInstallationId !== installationId) {
+            logger.warn("GitHub webhook installation id differs from repository linkage", {
+              repositoryId: repository.id,
+              owner,
+              name,
+              repositoryInstallationId: repository.githubInstallationId,
+              webhookInstallationId: installationId,
+            });
+          }
+
+          await this.scanService.createScan(repository.userId, repository.id, {
+            ...scanContext,
+            installationId,
+          });
         } catch (error) {
           logger.warn("GitHub webhook scan trigger skipped", {
             repositoryId: repository.id,
@@ -129,5 +150,49 @@ export class GithubService {
         }
       }),
     );
+  }
+
+  private buildPushScanContext(payload: GithubWebhookPayload): Partial<ScanContext> {
+    const branch = this.extractBranchFromRef(typeof payload?.ref === "string" ? payload.ref : null);
+    const changedFiles = new Set<string>();
+
+    for (const commit of Array.isArray(payload?.commits) ? payload.commits : []) {
+      for (const field of [commit.added, commit.modified, commit.removed]) {
+        if (Array.isArray(field)) {
+          for (const file of field) {
+            if (typeof file === "string" && file.trim().length > 0) {
+              changedFiles.add(file);
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      source: "github_push",
+      branch,
+      commitSha: typeof payload?.after === "string" ? payload.after : null,
+      baseCommitSha: typeof payload?.before === "string" ? payload.before : null,
+      changedFiles: [...changedFiles],
+    };
+  }
+
+  private buildPullRequestScanContext(payload: GithubWebhookPayload): Partial<ScanContext> {
+    return {
+      source: "github_pull_request",
+      branch: typeof payload?.pull_request?.head?.ref === "string" ? payload.pull_request.head.ref : null,
+      commitSha: typeof payload?.pull_request?.head?.sha === "string" ? payload.pull_request.head.sha : null,
+      baseBranch: typeof payload?.pull_request?.base?.ref === "string" ? payload.pull_request.base.ref : null,
+      baseCommitSha: typeof payload?.pull_request?.base?.sha === "string" ? payload.pull_request.base.sha : null,
+      pullRequestNumber: typeof payload?.pull_request?.number === "number" ? payload.pull_request.number : null,
+    };
+  }
+
+  private extractBranchFromRef(ref: string | null) {
+    if (!ref?.startsWith("refs/heads/")) {
+      return null;
+    }
+
+    return ref.slice("refs/heads/".length);
   }
 }

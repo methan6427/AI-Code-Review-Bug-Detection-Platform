@@ -65,6 +65,8 @@ export class RepositoryService {
       owner: payload.owner.login,
       branch: payload.default_branch,
       githubUrl: payload.html_url,
+      githubInstallationId: null,
+      githubRepositoryId: null,
       description: typeof payload.description === "string" ? payload.description : null,
     };
   }
@@ -76,6 +78,8 @@ export class RepositoryService {
       owner: input.owner,
       branch: input.branch,
       github_url: input.githubUrl,
+      github_installation_id: input.githubInstallationId ?? null,
+      github_repository_id: input.githubRepositoryId ?? null,
       access_token_hint: input.accessTokenHint ?? null,
       description: input.description ?? null,
       sample_files: input.sampleFiles?.length ? input.sampleFiles : defaultRepositoryFiles,
@@ -216,6 +220,12 @@ export class RepositoryService {
     }
     if (input.githubUrl !== undefined) {
       payload.github_url = input.githubUrl;
+    }
+    if (input.githubInstallationId !== undefined) {
+      payload.github_installation_id = input.githubInstallationId ?? null;
+    }
+    if (input.githubRepositoryId !== undefined) {
+      payload.github_repository_id = input.githubRepositoryId ?? null;
     }
     if (input.accessTokenHint !== undefined) {
       payload.access_token_hint = input.accessTokenHint || null;

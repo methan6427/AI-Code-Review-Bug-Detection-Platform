@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg version="1.1" id="CODE_CV_LOGO_BLUE" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 500 500" style="enable-background:new 0 0 500 500;" xml:space="preserve">
+  <g>
+    <path fill="#7CE4FF" d="M250,5L5,130v120c0,138.1,106.9,235,245,235s245-96.9,245-235V130L250,5z M450,250c0,111-85,188.1-198,188.1S54,361,54,250V144L250,53l196,91V250z"/>
+    
+    <path fill="#7CE4FF" d="M250,150c-55.2,0-100,44.8-100,100s44.8,100,100,100s100-44.8,100-100S305.2,150,250,150z M250,310c-33.1,0-60-26.9-60-60s26.9-60,60-60s60,26.9,60,60S283.1,310,250,310z M250,210c-22.1,0-40,17.9-40,40s17.9,40,40,40s40-17.9,40-40S272.1,210,250,210z"/>
+    
+    <g>
+      <path fill="#7CE4FF" d="M250,100v30"/>
+      <path fill="#7CE4FF" d="M250,130l-30,30l-10-10"/>
+      <path fill="#7CE4FF" d="M250,130l30,30l10-10"/>
+      <path fill="#7CE4FF" d="M150,150l-20-20h-30"/>
+      <path fill="#7CE4FF" d="M350,150l20-20h30"/>
+      <path fill="#7CE4FF" d="M100,200v100"/>
+      <path fill="#7CE4FF" d="M400,200v100"/>
+      <path fill="#7CE4FF" d="M150,350l-20,20h-30"/>
+      <path fill="#7CE4FF" d="M350,350l20,20h30"/>
+      <path fill="#7CE4FF" d="M250,370v30"/>
+      <path fill="#7CE4FF" d="M160,250l-40-40"/>
+      <path fill="#7CE4FF" d="M160,250l-40,40"/>
+      <path fill="#7CE4FF" d="M340,250l40-40"/>
+      <path fill="#7CE4FF" d="M340,250l40,40"/>
+    </g>
+  </g>
+</svg>

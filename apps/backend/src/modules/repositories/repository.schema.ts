@@ -10,6 +10,8 @@ export const createRepositorySchema = z.object({
   owner: z.string().trim().min(2).max(120),
   branch: z.string().trim().min(1).max(120).default("main"),
   githubUrl: z.string().trim().url(),
+  githubInstallationId: z.number().int().positive().optional(),
+  githubRepositoryId: z.number().int().positive().optional(),
   accessTokenHint: z.string().trim().max(255).optional(),
   description: z.string().trim().max(500).optional(),
   sampleFiles: z.array(sampleFileSchema).max(20).optional(),
