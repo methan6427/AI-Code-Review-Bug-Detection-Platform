@@ -7,6 +7,9 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
-    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit"
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
+    "test": "node ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts --pool threads",
+    "test:watch": "node ../../node_modules/vitest/vitest.mjs --config vitest.config.ts --pool threads",
+    "test:coverage": "node ../../node_modules/vitest/vitest.mjs run --coverage --config vitest.config.ts --pool threads"
   }
 }

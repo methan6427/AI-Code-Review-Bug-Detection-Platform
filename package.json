@@ -13,9 +13,22 @@
     "dev:frontend": "npm run dev --workspace frontend",
     "build": "npm run build --workspace @ai-review/shared && npm run build --workspace backend && npm run build --workspace frontend",
     "lint": "npm run lint --workspace backend && npm run lint --workspace frontend",
-    "typecheck": "npm run typecheck --workspace @ai-review/shared && npm run typecheck --workspace backend && npm run typecheck --workspace frontend"
+    "typecheck": "npm run typecheck --workspace @ai-review/shared && npm run typecheck --workspace backend && npm run typecheck --workspace frontend",
+    "test": "npm run test --workspace @ai-review/shared && npm run test --workspace backend && npm run test --workspace frontend",
+    "test:watch": "npm run test:watch --workspace frontend",
+    "test:coverage": "npm run test:coverage --workspace @ai-review/shared && npm run test:coverage --workspace backend && npm run test:coverage --workspace frontend"
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/supertest": "^7.2.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "jsdom": "^28.1.0",
+    "supertest": "^7.2.2",
+    "vitest": "^4.0.18"
   }
 }
