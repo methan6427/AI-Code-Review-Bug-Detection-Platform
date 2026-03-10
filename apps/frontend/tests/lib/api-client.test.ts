@@ -47,4 +47,24 @@ describe("apiClient", () => {
 
     expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:4000/api/issues/scan/scan-1?severity=critical&status=open");
   });
+
+  it("times out stalled auth bootstrap requests", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_input, init) =>
+        new Promise((_, reject) => {
+          const signal = init?.signal as AbortSignal | undefined;
+          signal?.addEventListener("abort", () => {
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          });
+        }),
+    );
+
+    const requestPromise = apiClient.getMe();
+    const assertion = expect(requestPromise).rejects.toThrow("Request timed out after 8000ms");
+    await vi.advanceTimersByTimeAsync(8_100);
+
+    await assertion;
+    vi.useRealTimers();
+  });
 });

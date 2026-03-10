@@ -36,6 +36,19 @@ export function AppLayout() {
     }
   }, [pushToast]);
 
+  useEffect(() => {
+    if (!meQuery.error) {
+      return;
+    }
+
+    const message = meQuery.error instanceof Error ? meQuery.error.message : "Unable to load workspace profile";
+    pushToast({
+      tone: "warning",
+      title: "Profile sync unavailable",
+      description: message,
+    });
+  }, [meQuery.error, pushToast]);
+
   const handleLogout = async () => {
     try {
       await apiClient.logout();
@@ -168,6 +181,11 @@ export function AppLayout() {
                 </Button>
               </div>
               {githubError ? <p className="text-xs text-rose-300">{githubError}</p> : null}
+              {meQuery.isError ? (
+                <p className="text-xs text-amber-300">
+                  Workspace profile sync is unavailable right now. Check the backend API URL and CORS `APP_ORIGIN` for this Vercel domain.
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="border-t border-white/8 bg-white/[0.02] px-5 py-3 text-xs text-slate-500">

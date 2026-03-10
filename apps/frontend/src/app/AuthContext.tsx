@@ -1,7 +1,7 @@
 import type { AuthResponse } from "@ai-review/shared";
 import type { ReactNode } from "react";
 import { createContext, useEffect, useMemo, useState } from "react";
-import { apiClient } from "../lib/api-client";
+import { ApiRequestError, apiClient } from "../lib/api-client";
 import { sessionStorageService, type StoredSession } from "../lib/storage";
 import { getSupabaseBrowserClient, mapSupabaseSessionToStoredSession } from "../lib/supabase";
 
@@ -39,13 +39,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (active) {
         sessionStorageService.set(candidateSession);
         setSession(candidateSession);
+        setHydrated(true);
       }
 
       try {
+        console.info("[AuthProvider] /auth/me bootstrap start");
         const { profile } = await apiClient.getMe();
         if (!active) {
           return;
         }
+
+        console.info("[AuthProvider] /auth/me bootstrap success", { profileId: profile.id });
 
         const nextSession: StoredSession = {
           ...candidateSession,
@@ -59,16 +63,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         sessionStorageService.set(nextSession);
         setSession(nextSession);
-      } catch {
+      } catch (error) {
         if (!active) {
           return;
         }
 
-        sessionStorageService.clear();
-        setSession(null);
-      } finally {
-        if (active) {
-          setHydrated(true);
+        const message = error instanceof Error ? error.message : "Unable to load workspace profile";
+        console.error("[AuthProvider] /auth/me bootstrap failed", {
+          error: message,
+          isTimeout: error instanceof ApiRequestError ? error.isTimeout ?? false : false,
+          status: error instanceof ApiRequestError ? error.status ?? null : null,
+        });
+
+        if (error instanceof ApiRequestError && error.status === 401) {
+          sessionStorageService.clear();
+          setSession(null);
         }
       }
     };

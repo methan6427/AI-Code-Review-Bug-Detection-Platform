@@ -22,8 +22,23 @@ if (!API_URL) {
   throw new Error("VITE_API_URL is not configured");
 }
 
+const defaultRequestTimeoutMs = 8_000;
+
+export class ApiRequestError extends Error {
+  status?: number;
+  isTimeout?: boolean;
+
+  constructor(message: string, options: { status?: number; isTimeout?: boolean } = {}) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = options.status;
+    this.isTimeout = options.isTimeout;
+  }
+}
+
 type RequestOptions = RequestInit & {
   authenticated?: boolean;
+  timeoutMs?: number;
 };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -39,10 +54,46 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? defaultRequestTimeoutMs;
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const url = `${API_URL}${path}`;
+
+  if (path === "/auth/me") {
+    console.info("[apiClient] /auth/me request start", { apiBaseUrl: API_URL, url, timeoutMs });
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    window.clearTimeout(timeoutId);
+
+    if (path === "/auth/me") {
+      console.error("[apiClient] /auth/me request failed", {
+        apiBaseUrl: API_URL,
+        url,
+        error: error instanceof Error ? error.message : "Unknown fetch error",
+        timedOut: error instanceof DOMException && error.name === "AbortError",
+      });
+    }
+
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiRequestError(`Request timed out after ${timeoutMs}ms`, { isTimeout: true });
+    }
+
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+
+  if (path === "/auth/me") {
+    console.info("[apiClient] /auth/me response", { apiBaseUrl: API_URL, url, status: response.status, ok: response.ok });
+  }
 
   if (response.status === 401 && options.authenticated) {
     sessionStorageService.clear();
@@ -50,7 +101,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (!response.ok) {
     const body = (await response.json().catch(() => ({ message: "Request failed" }))) as { message?: string };
-    throw new Error(body.message ?? "Request failed");
+    throw new ApiRequestError(body.message ?? "Request failed", { status: response.status });
   }
 
   return response.json() as Promise<T>;
