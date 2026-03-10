@@ -1,5 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthCallbackPage } from "../../src/pages/AuthCallbackPage";
 import { renderWithProviders, createAuthValue } from "../utils/render";
 import { consumeFlashFeedback } from "../../src/lib/feedback";
@@ -34,6 +34,11 @@ vi.mock("../../src/lib/supabase", () => ({
 }));
 
 describe("AuthCallbackPage", () => {
+  beforeEach(() => {
+    exchangeCodeForSession.mockReset();
+    getSession.mockReset();
+  });
+
   it("shows a loading surface while the callback is being processed", async () => {
     getSession.mockImplementation(() => new Promise(() => undefined));
 

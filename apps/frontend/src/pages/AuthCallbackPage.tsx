@@ -2,10 +2,36 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { getSupabaseBrowserClient, isSupabaseOAuthConfigured, mapSupabaseSessionToStoredSession } from "../lib/supabase";
+import { Button } from "../components/ui/Button";
 import { InlineMessage } from "../components/ui/InlineMessage";
 import { feedbackMessages, storeFlashFeedback } from "../lib/feedback";
 
 const postAuthRedirectKey = "ai-review-post-auth-redirect";
+const sessionPollDelayMs = 250;
+const sessionPollAttempts = 8;
+
+async function waitForSupabaseSession() {
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) {
+    throw new Error("OAuth client is unavailable");
+  }
+
+  for (let attempt = 0; attempt < sessionPollAttempts; attempt += 1) {
+    const { data, error } = await supabase.auth.getSession();
+    console.info("[AuthCallbackPage] session lookup", { attempt, hasSession: Boolean(data.session), error: error?.message ?? null });
+    if (error) {
+      throw error;
+    }
+
+    if (data.session) {
+      return data.session;
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, sessionPollDelayMs));
+  }
+
+  return null;
+}
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
@@ -15,19 +41,24 @@ export function AuthCallbackPage() {
   const [loadingLabel, setLoadingLabel] = useState("Checking your Supabase session");
 
   useEffect(() => {
+    console.info("[AuthCallbackPage] callback start", { url: window.location.href });
+
     if (!isSupabaseOAuthConfigured) {
+      console.error("[AuthCallbackPage] OAuth is not configured for the frontend");
       setError("OAuth is not configured for the frontend");
       return;
     }
 
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
+      console.error("[AuthCallbackPage] OAuth client is unavailable");
       setError("OAuth client is unavailable");
       return;
     }
 
     const authError = searchParams.get("error_description") || searchParams.get("error");
     if (authError) {
+      console.error("[AuthCallbackPage] provider returned an auth error", { authError });
       setError(authError);
       return;
     }
@@ -41,6 +72,7 @@ export function AuthCallbackPage() {
       try {
         if (authCode) {
           setLoadingLabel("Finalizing provider sign-in");
+          console.info("[AuthCallbackPage] exchanging OAuth code for session");
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(authCode);
           if (exchangeError) {
             throw exchangeError;
@@ -48,12 +80,7 @@ export function AuthCallbackPage() {
         }
 
         setLoadingLabel("Restoring your workspace session");
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          throw sessionError;
-        }
-
-        const finalSession = sessionData.session;
+        const finalSession = await waitForSupabaseSession();
 
         if (!active) {
           return;
@@ -62,6 +89,11 @@ export function AuthCallbackPage() {
         if (!finalSession) {
           throw new Error("OAuth sign-in did not return a session");
         }
+
+        console.info("[AuthCallbackPage] session restored", {
+          userId: finalSession.user.id,
+          provider: finalSession.user.app_metadata.provider ?? null,
+        });
 
         setStoredSession(mapSupabaseSessionToStoredSession(finalSession));
 
@@ -78,7 +110,16 @@ export function AuthCallbackPage() {
           return;
         }
 
-        setError(callbackError instanceof Error ? callbackError.message : "Unable to complete OAuth sign-in");
+        const message = callbackError instanceof Error ? callbackError.message : "Unable to complete OAuth sign-in";
+        console.error("[AuthCallbackPage] callback failed", { error: message });
+        setError(message);
+        window.localStorage.removeItem(postAuthRedirectKey);
+        window.setTimeout(() => {
+          navigate("/auth", {
+            replace: true,
+            state: { oauthError: message },
+          });
+        }, 2500);
       }
     })();
 
@@ -94,11 +135,17 @@ export function AuthCallbackPage() {
         <h1 className="mt-4 text-3xl font-semibold text-white">{error ? "Sign-in failed" : "Completing sign-in"}</h1>
         <div className="mt-4">
           {error ? (
-            <InlineMessage tone="error">{error}</InlineMessage>
+            <div className="space-y-4">
+              <InlineMessage tone="error">{error}</InlineMessage>
+              <p className="text-sm text-slate-400">Redirecting you back to sign in...</p>
+              <Button onClick={() => navigate("/auth", { replace: true, state: { oauthError: error } })} type="button" variant="secondary">
+                Back to sign in
+              </Button>
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-cyan-300/25 border-t-cyan-300" />
-              <InlineMessage tone="info">{loadingLabel}</InlineMessage>
+              <InlineMessage tone="info">{loadingLabel || "Signing you in..."}</InlineMessage>
             </div>
           )}
         </div>

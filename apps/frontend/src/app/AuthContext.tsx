@@ -8,6 +8,7 @@ import { getSupabaseBrowserClient, mapSupabaseSessionToStoredSession } from "../
 interface AuthContextValue {
   session: StoredSession | null;
   isAuthenticated: boolean;
+  isHydrating: boolean;
   setAuthSession: (payload: AuthResponse) => void;
   setStoredSession: (session: StoredSession) => void;
   clearAuthSession: () => void;
@@ -110,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       isAuthenticated: Boolean(session?.accessToken),
+      isHydrating: !hydrated,
       setAuthSession: (payload) => {
         const nextSession: StoredSession = {
           accessToken: payload.session.accessToken,
@@ -129,12 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null);
       },
     }),
-    [session],
+    [hydrated, session],
   );
-
-  if (!hydrated) {
-    return null;
-  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

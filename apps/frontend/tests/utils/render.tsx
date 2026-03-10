@@ -9,6 +9,7 @@ import { ToastProvider } from "../../src/components/ui/Toast";
 export const createAuthValue = (overrides: Partial<ContextType<typeof AuthContext>> = {}) => ({
   session: null,
   isAuthenticated: false,
+  isHydrating: false,
   setAuthSession: vi.fn(),
   setStoredSession: vi.fn(),
   clearAuthSession: vi.fn(),

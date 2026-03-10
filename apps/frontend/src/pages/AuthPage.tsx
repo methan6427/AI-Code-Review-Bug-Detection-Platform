@@ -35,6 +35,13 @@ export function AuthPage() {
     setError(null);
   }, [mode]);
 
+  useEffect(() => {
+    const oauthError = (location.state as { oauthError?: string } | null)?.oauthError;
+    if (oauthError) {
+      setError(oauthError);
+    }
+  }, [location.state]);
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const validationError = validateAuthForm({ mode, email, password, fullName });
