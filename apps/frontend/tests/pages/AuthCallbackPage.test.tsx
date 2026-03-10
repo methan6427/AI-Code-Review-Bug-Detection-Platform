@@ -6,6 +6,14 @@ import { consumeFlashFeedback } from "../../src/lib/feedback";
 
 const getSession = vi.fn();
 const exchangeCodeForSession = vi.fn();
+const setSession = vi.fn();
+const onAuthStateChange = vi.fn(() => ({
+  data: {
+    subscription: {
+      unsubscribe: vi.fn(),
+    },
+  },
+}));
 
 vi.mock("../../src/lib/supabase", () => ({
   isSupabaseOAuthConfigured: true,
@@ -29,6 +37,8 @@ vi.mock("../../src/lib/supabase", () => ({
     auth: {
       exchangeCodeForSession,
       getSession,
+      onAuthStateChange,
+      setSession,
     },
   }),
 }));
@@ -37,6 +47,8 @@ describe("AuthCallbackPage", () => {
   beforeEach(() => {
     exchangeCodeForSession.mockReset();
     getSession.mockReset();
+    setSession.mockReset();
+    window.location.hash = "";
   });
 
   it("shows a loading surface while the callback is being processed", async () => {
@@ -83,6 +95,44 @@ describe("AuthCallbackPage", () => {
     await waitFor(() => expect(exchangeCodeForSession).toHaveBeenCalledWith("abc"));
     await waitFor(() => expect(auth.setStoredSession).toHaveBeenCalledWith(expect.objectContaining({ accessToken: "access" })));
     expect(consumeFlashFeedback()).toMatchObject({ title: "Github sign-in complete" });
+  });
+
+  it("restores a session from callback token params when no code is present", async () => {
+    window.location.hash = "#access_token=access&refresh_token=refresh";
+    setSession.mockResolvedValue({ error: null });
+    getSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "access",
+          refresh_token: "refresh",
+          expires_at: 123,
+          user: {
+            id: "user-1",
+            email: "ada@example.com",
+            user_metadata: { full_name: "Ada Lovelace" },
+            app_metadata: {
+              provider: "google",
+            },
+          },
+        },
+      },
+      error: null,
+    });
+    const auth = createAuthValue();
+
+    renderWithProviders(<AuthCallbackPage />, {
+      route: "/auth/callback",
+      path: "/auth/callback",
+      auth,
+    });
+
+    await waitFor(() =>
+      expect(setSession).toHaveBeenCalledWith({
+        access_token: "access",
+        refresh_token: "refresh",
+      }),
+    );
+    await waitFor(() => expect(auth.setStoredSession).toHaveBeenCalledWith(expect.objectContaining({ accessToken: "access" })));
   });
 
   it("renders callback errors from the OAuth redirect", async () => {

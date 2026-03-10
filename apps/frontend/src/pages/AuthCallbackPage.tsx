@@ -7,8 +7,25 @@ import { InlineMessage } from "../components/ui/InlineMessage";
 import { feedbackMessages, storeFlashFeedback } from "../lib/feedback";
 
 const postAuthRedirectKey = "ai-review-post-auth-redirect";
+const callbackTimeoutMs = 10_000;
+const exchangeTimeoutMs = 8_000;
+const sessionRequestTimeoutMs = 2_000;
 const sessionPollDelayMs = 250;
 const sessionPollAttempts = 8;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    }),
+  ]);
+}
+
+function getHashParams() {
+  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  return new URLSearchParams(hash);
+}
 
 async function waitForSupabaseSession() {
   const supabase = getSupabaseBrowserClient();
@@ -17,7 +34,7 @@ async function waitForSupabaseSession() {
   }
 
   for (let attempt = 0; attempt < sessionPollAttempts; attempt += 1) {
-    const { data, error } = await supabase.auth.getSession();
+    const { data, error } = await withTimeout(supabase.auth.getSession(), sessionRequestTimeoutMs, "Supabase session lookup");
     console.info("[AuthCallbackPage] session lookup", { attempt, hasSession: Boolean(data.session), error: error?.message ?? null });
     if (error) {
       throw error;
@@ -41,7 +58,17 @@ export function AuthCallbackPage() {
   const [loadingLabel, setLoadingLabel] = useState("Checking your Supabase session");
 
   useEffect(() => {
-    console.info("[AuthCallbackPage] callback start", { url: window.location.href });
+    const hashParams = getHashParams();
+    const authCode = searchParams.get("code");
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+
+    console.info("[AuthCallbackPage] callback start", {
+      url: window.location.href,
+      hasCode: Boolean(authCode),
+      hasAccessToken: Boolean(accessToken),
+      hasRefreshToken: Boolean(refreshToken),
+    });
 
     if (!isSupabaseOAuthConfigured) {
       console.error("[AuthCallbackPage] OAuth is not configured for the frontend");
@@ -63,48 +90,70 @@ export function AuthCallbackPage() {
       return;
     }
 
-    const authCode = searchParams.get("code");
     const nextRoute = searchParams.get("next") || "/dashboard";
 
     let active = true;
 
     void (async () => {
       try {
-        if (authCode) {
-          setLoadingLabel("Finalizing provider sign-in");
-          console.info("[AuthCallbackPage] exchanging OAuth code for session");
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(authCode);
-          if (exchangeError) {
-            throw exchangeError;
-          }
-        }
+        await withTimeout(
+          (async () => {
+            if (accessToken && refreshToken) {
+              setLoadingLabel("Restoring your provider session");
+              console.info("[AuthCallbackPage] setting session from callback token params");
+              const { error: setSessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
 
-        setLoadingLabel("Restoring your workspace session");
-        const finalSession = await waitForSupabaseSession();
+              if (setSessionError) {
+                throw setSessionError;
+              }
+            } else if (authCode) {
+              setLoadingLabel("Finalizing provider sign-in");
+              console.info("[AuthCallbackPage] exchanging OAuth code for session");
+              const { error: exchangeError } = await withTimeout(
+                supabase.auth.exchangeCodeForSession(authCode),
+                exchangeTimeoutMs,
+                "Supabase OAuth code exchange",
+              );
+              if (exchangeError) {
+                throw exchangeError;
+              }
+            } else {
+              console.warn("[AuthCallbackPage] callback missing code and token params");
+            }
 
-        if (!active) {
-          return;
-        }
+            setLoadingLabel("Restoring your workspace session");
+            const finalSession = await waitForSupabaseSession();
 
-        if (!finalSession) {
-          throw new Error("OAuth sign-in did not return a session");
-        }
+            if (!active) {
+              return;
+            }
 
-        console.info("[AuthCallbackPage] session restored", {
-          userId: finalSession.user.id,
-          provider: finalSession.user.app_metadata.provider ?? null,
-        });
+            if (!finalSession) {
+              throw new Error("OAuth sign-in did not return a session");
+            }
 
-        setStoredSession(mapSupabaseSessionToStoredSession(finalSession));
+            console.info("[AuthCallbackPage] session restored", {
+              userId: finalSession.user.id,
+              provider: finalSession.user.app_metadata.provider ?? null,
+            });
 
-        const redirectTarget = window.localStorage.getItem(postAuthRedirectKey) || nextRoute;
-        window.localStorage.removeItem(postAuthRedirectKey);
-        const providerName =
-          typeof finalSession.user.app_metadata.provider === "string"
-            ? finalSession.user.app_metadata.provider.charAt(0).toUpperCase() + finalSession.user.app_metadata.provider.slice(1)
-            : "OAuth";
-        storeFlashFeedback(feedbackMessages.oauthConnected(providerName));
-        navigate(redirectTarget, { replace: true });
+            setStoredSession(mapSupabaseSessionToStoredSession(finalSession));
+
+            const redirectTarget = window.localStorage.getItem(postAuthRedirectKey) || nextRoute;
+            window.localStorage.removeItem(postAuthRedirectKey);
+            const providerName =
+              typeof finalSession.user.app_metadata.provider === "string"
+                ? finalSession.user.app_metadata.provider.charAt(0).toUpperCase() + finalSession.user.app_metadata.provider.slice(1)
+                : "OAuth";
+            storeFlashFeedback(feedbackMessages.oauthConnected(providerName));
+            navigate(redirectTarget, { replace: true });
+          })(),
+          callbackTimeoutMs,
+          "OAuth callback completion",
+        );
       } catch (callbackError) {
         if (!active) {
           return;
