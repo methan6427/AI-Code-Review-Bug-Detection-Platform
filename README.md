@@ -4,13 +4,6 @@ Monorepo MVP for authenticated repository management, manual scan orchestration,
 
 The app uses a React frontend, an Express backend, and Supabase for Auth + Postgres. Repositories are stored as metadata plus sample files, then a rule-based scan engine generates realistic findings and dashboard summaries.
 
-## Why This Is A Strong CV Project
-
-- full-stack TypeScript monorepo with shared contracts across frontend and backend
-- authenticated product workflow instead of isolated demo screens
-- realistic CRUD, scan orchestration, reporting, and seeded demo data
-- clean separation between API modules, analysis services, and UI features
-- explicit phase-2 seams for OAuth, background workers, repo cloning, and LLM enrichment
 
 ## MVP Status
 
@@ -56,6 +49,10 @@ docs/           Architecture and schema notes
 - Node.js 20+
 - npm 10+
 - A Supabase project
+- A Vercel account for the frontend
+- A Fly.io account for the backend API
+- Optional: an `ngrok` account for local OAuth/webhook testing
+- Optional: a GitHub App if you want installation-backed repository import, webhook-triggered scans, and check-run reporting
 
 ## Quick Start
 
@@ -354,60 +351,219 @@ npm run test --workspace frontend
 - `packages/shared/tests/*`: contract stability tests
 - `tests/factories/*`: reusable cross-workspace domain fixtures
 
-## Troubleshooting
+## Deployment Overview
 
-- `Profile not found` after auth: Make sure the migration ran successfully, including the `handle_new_user` trigger.
-- Signup fails: Verify `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are correct in `apps/backend/.env`.
-- Frontend cannot reach backend: Confirm `VITE_API_URL` matches the backend origin and that `APP_ORIGIN` includes the frontend URL. Multiple origins can be supplied as a comma-separated list.
-- Empty dashboard after setup: Run `npm run seed:demo --workspace backend` or create a repository manually and trigger a scan.
-- Scans remain queued: Confirm `npm run dev:worker` is running in a separate terminal.
-- Tests fail to start on Windows from a restricted shell: Run the workspace test command directly from the repo root or from each workspace directory using the provided npm scripts.
-- GitHub check runs are missing: Verify the GitHub App has `Checks: Read and write` and `Contents: Read` permissions. If you changed app permissions, reinstall or re-authorize the app on the target repository/org so the installation token picks up the new scope.
-- GitHub check runs still show `githubCheckRunId: null`: Check backend/worker logs for `Skipping GitHub check run`, `Attempting GitHub check run`, `GitHub installation access token request failed`, or `GitHub check run creation failed`. The log metadata now includes the installation id, repo, commit SHA, HTTP status, and GitHub error body.
+Production is split across multiple services:
 
-## Vercel Deployment
+- Vercel: static frontend build from `apps/frontend/dist`
+- Fly.io: Express backend API
+- Supabase: Auth, OAuth providers, and Postgres
+- GitHub App: installation-backed repository import, webhooks, and check runs
+- Optional ngrok: public tunnel for local webhook and callback testing
+
+The frontend always expects `VITE_API_URL` to include the `/api` suffix.
+
+Examples:
+
+- Local frontend API base: `http://localhost:4000/api`
+- Production frontend API base: `https://ai-code-review-bug-detection-platform.fly.dev/api`
+
+## Vercel Frontend Deployment
 
 - Root Directory: `.`
 - Build Command: `npm run build:frontend`
 - Output Directory: `apps/frontend/dist`
 
-The frontend depends on the workspace package `@ai-review/shared`, so Vercel must install and build from the monorepo root. The `build:frontend` script builds `packages/shared` first, then builds the Vite frontend.
+This repo includes [`vercel.json`](./vercel.json) so React Router deep links are rewritten to `index.html`.
 
 Required frontend environment variables in Vercel:
 
-- `VITE_API_URL`
+- `VITE_API_URL=https://ai-code-review-bug-detection-platform.fly.dev/api`
+- `VITE_SUPABASE_URL=https://your-project.supabase.co`
+- `VITE_SUPABASE_ANON_KEY=your-supabase-anon-key`
+
+Important:
+
+- `VITE_API_URL` must include `/api`
+- `SUPABASE_SERVICE_ROLE_KEY` must never be exposed in Vercel frontend env
+- If you connect Supabase through the Vercel integration UI, the public env prefix for this repo is `VITE_`
+
+## Fly.io Backend Deployment
+
+The backend is an Express server and should be deployed separately from the Vercel frontend.
+
+Current backend runtime expectations:
+
+- backend listens on `process.env.PORT`
+- default backend port is `4000`
+- Fly `internal_port` must match that backend port
+
+This repo is configured for:
+
+- Fly internal port: `4000`
+- Docker exposed port: `4000`
+- Backend `PORT=4000`
+
+Required backend environment variables on Fly:
+
+```env
+NODE_ENV=production
+PORT=4000
+APP_ORIGIN=https://your-project.vercel.app
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+GITHUB_TOKEN=optional-github-token-for-imports
+GITHUB_APP_ID=optional-github-app-id
+GITHUB_APP_NAME=optional-github-app-name
+GITHUB_APP_CLIENT_ID=optional-github-app-client-id
+GITHUB_APP_CLIENT_SECRET=optional-github-app-client-secret
+GITHUB_APP_PRIVATE_KEY=optional-github-app-private-key-with-\n
+GITHUB_WEBHOOK_SECRET=optional-webhook-secret-for-github-events
+SCAN_WORKER_POLL_INTERVAL_MS=3000
+SCAN_MAX_ATTEMPTS=3
+SCAN_RETRY_BASE_DELAY_MS=5000
+```
+
+If you have multiple frontend origins, `APP_ORIGIN` can be comma-separated:
+
+```env
+APP_ORIGIN=http://localhost:5173,https://your-project.vercel.app
+```
+
+## Supabase Setup
+
+This app uses Supabase for:
+
+- email/password auth
+- Google OAuth
+- GitHub OAuth
+- profile sync via migrations and auth trigger
+- backend database access
+
+Frontend env:
+
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-This repo includes [`vercel.json`](./vercel.json) so React Router deep links are rewritten to `index.html` and the monorepo build/output settings stay consistent.
+Backend env:
 
-Important: this Vercel setup deploys the frontend app. The Express backend and worker are still separate runtime services and need to be hosted outside this static Vercel frontend build unless you separately convert the backend to Vercel serverless functions.
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-### Step-by-step deployment
+Supabase Auth configuration should include:
 
-1. Push this repository to GitHub.
-2. Deploy or keep your backend running on a public URL, for example `https://your-api.example.com/api`.
-3. In Supabase Auth settings, add your Vercel site URL and callback URL:
-   - Site URL: `https://your-project.vercel.app`
-   - Redirect URL: `https://your-project.vercel.app/auth/callback`
-4. In your backend environment, add the Vercel frontend origin to `APP_ORIGIN`.
-   Example: `APP_ORIGIN=http://localhost:5173,https://your-project.vercel.app`
-5. In Vercel, click `Add New Project` and import this repository.
-6. In the Vercel project settings, keep the project Root Directory as `.`
-7. Set these Vercel environment variables:
-   - `VITE_API_URL=https://your-api.example.com/api`
-   - `VITE_SUPABASE_URL=https://your-project.supabase.co`
-   - `VITE_SUPABASE_ANON_KEY=your-supabase-anon-key`
-8. For the build settings, use:
-   - Build Command: `npm run build:frontend`
-   - Output Directory: `apps/frontend/dist`
-9. Start the deployment.
-10. After the first deploy finishes, open the Vercel URL and test:
-   - `/auth`
-   - `/auth/callback`
-   - a deep link like `/dashboard`
-11. Verify email/password auth, GitHub auth, and Google auth from the deployed frontend.
-12. If OAuth redirects fail, re-check the Supabase redirect URLs and confirm the backend `APP_ORIGIN` includes the Vercel domain.
+- Site URL:
+  `https://your-project.vercel.app`
+- Redirect URLs:
+  `https://your-project.vercel.app/auth/callback`
+  `http://localhost:5173/auth/callback`
+
+The frontend callback logic uses:
+
+- `${window.location.origin}/auth/callback`
+
+So the same code works locally and on Vercel as long as those redirect URLs exist in Supabase.
+
+## GitHub App Setup
+
+GitHub App support is separate from Supabase OAuth.
+
+Use a GitHub App if you want:
+
+- installation-backed repository discovery
+- installation repository import
+- signed webhook ingestion for push and pull request scans
+- GitHub check-run reporting on scan completion
+
+Recommended GitHub App permissions:
+
+- `Contents: Read`
+- `Metadata: Read`
+- `Checks: Read and write`
+- `Pull requests: Read`
+
+Recommended webhook events:
+
+- `push`
+- `pull_request`
+- `installation`
+- `installation_repositories`
+
+Backend env for GitHub App features:
+
+- `GITHUB_APP_ID`
+- `GITHUB_APP_NAME`
+- `GITHUB_APP_CLIENT_ID`
+- `GITHUB_APP_CLIENT_SECRET`
+- `GITHUB_APP_PRIVATE_KEY`
+- `GITHUB_WEBHOOK_SECRET`
+
+Backend routes used by the frontend and GitHub:
+
+- `GET /api/github/app/install-url`
+- `GET /api/github/installations`
+- `GET /api/github/installations/:installationId/repositories`
+- `POST /api/github/webhooks`
+
+## Optional ngrok Local Testing
+
+Use `ngrok` when you need a public URL for local development, especially for:
+
+- GitHub App webhook delivery to your local backend
+- testing Supabase OAuth callbacks against a public local frontend
+
+Example local tunnels:
+
+- frontend: `ngrok http 5173`
+- backend: `ngrok http 4000`
+
+Typical local callback/webhook mappings:
+
+- Supabase local callback:
+  `https://<frontend-ngrok>.ngrok-free.app/auth/callback`
+- GitHub webhook target:
+  `https://<backend-ngrok>.ngrok-free.app/api/github/webhooks`
+
+If you use ngrok, add the public frontend origin to:
+
+- Supabase Auth redirect URLs
+- backend `APP_ORIGIN`
+
+## End-to-End Production Checklist
+
+1. Deploy backend to Fly.io.
+2. Confirm Fly app serves `GET /api/health`.
+3. Set Fly `PORT=4000`.
+4. Set Fly `internal_port = 4000`.
+5. Deploy frontend to Vercel from the monorepo root.
+6. Set `VITE_API_URL=https://ai-code-review-bug-detection-platform.fly.dev/api`.
+7. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Vercel.
+8. Add Vercel frontend origin to Fly `APP_ORIGIN`.
+9. Add Vercel and localhost callback URLs in Supabase Auth settings.
+10. If using GitHub App features, configure the GitHub App callback, permissions, installation, and webhook URL.
+11. Verify these URLs in production:
+    - `/auth`
+    - `/auth/callback`
+    - `/dashboard`
+    - backend `/api/health`
+
+## Troubleshooting
+
+- `Profile not found` after auth: Make sure the migration ran successfully, including the `handle_new_user` trigger.
+- Signup fails: Verify `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are correct in `apps/backend/.env`.
+- Frontend cannot reach backend: Confirm `VITE_API_URL` matches the backend origin and includes `/api`. Also confirm `APP_ORIGIN` includes the frontend URL. Multiple origins can be supplied as a comma-separated list.
+- Fly proxy shows `failed to connect to machine` or `could not find a good candidate`: Check Fly `internal_port` matches backend `PORT`, and confirm the backend process started successfully.
+- Frontend hits `https://your-backend.fly.dev/github/installations` instead of `/api/github/installations`: Fix `VITE_API_URL` to include `/api`.
+- OAuth callback reaches `/auth/callback` but fails to finish: Re-check Supabase redirect URLs and confirm `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct.
+- OAuth works but app bootstrap hangs on `/auth/me`: Check backend CORS `APP_ORIGIN`, backend availability, and the frontend `VITE_API_URL`.
+- Dashboard summary times out: Check Fly backend logs for dashboard request timing and Supabase query timing.
+- Empty dashboard after setup: Run `npm run seed:demo --workspace backend` or create a repository manually and trigger a scan.
+- Scans remain queued: Confirm `npm run dev:worker` is running in a separate terminal.
+- Tests fail to start on Windows from a restricted shell: Run the workspace test command directly from the repo root or from each workspace directory using the provided npm scripts.
+- GitHub check runs are missing: Verify the GitHub App has `Checks: Read and write` and `Contents: Read` permissions. If you changed app permissions, reinstall or re-authorize the app on the target repository/org so the installation token picks up the new scope.
+- GitHub check runs still show `githubCheckRunId: null`: Check backend/worker logs for `Skipping GitHub check run`, `Attempting GitHub check run`, `GitHub installation access token request failed`, or `GitHub check run creation failed`. The log metadata now includes the installation id, repo, commit SHA, HTTP status, and GitHub error body.
 
 ## Further Reading
 
