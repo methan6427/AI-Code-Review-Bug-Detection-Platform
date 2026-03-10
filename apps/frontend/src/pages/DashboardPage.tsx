@@ -81,10 +81,14 @@ export function DashboardPage() {
   }
 
   if (query.isError) {
+    const message = query.error.message.includes("timed out")
+      ? `${query.error.message}. Check the backend dashboard logs, Supabase query timings, and that VITE_API_URL points at the production API.`
+      : query.error.message;
+
     return (
       <ErrorState
         title="Dashboard summary unavailable"
-        message={query.error.message}
+        message={message}
         retry={() => void query.refetch()}
         action={
           <Link to="/repositories">

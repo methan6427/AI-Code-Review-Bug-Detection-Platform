@@ -93,6 +93,7 @@ describe("AuthCallbackPage", () => {
     });
 
     await waitFor(() => expect(exchangeCodeForSession).toHaveBeenCalledWith("abc"));
+    expect(exchangeCodeForSession).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(auth.setStoredSession).toHaveBeenCalledWith(expect.objectContaining({ accessToken: "access" })));
     expect(consumeFlashFeedback()).toMatchObject({ title: "Github sign-in complete" });
   });

@@ -2,40 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockSupabase } from "../../utils/mockSupabase";
 
 const supabase = createMockSupabase();
-const repositoryServiceMock = {
-  listOwnedRepositoryIds: vi.fn(),
-};
 
 vi.mock("../../../src/services/supabase/client", () => ({
   supabaseAdmin: supabase.supabaseAdmin,
 }));
 
-vi.mock("../../../src/modules/repositories/repository.service", () => ({
-  RepositoryService: class {
-    constructor() {
-      return repositoryServiceMock;
-    }
-  },
-}));
-
 describe("DashboardService", () => {
   beforeEach(() => {
     supabase.reset();
-    repositoryServiceMock.listOwnedRepositoryIds.mockReset();
   });
 
   it("aggregates repository, scan, and issue metrics", async () => {
-    repositoryServiceMock.listOwnedRepositoryIds.mockResolvedValue(["repo-1"]);
-    supabase.queueResult("profiles", "select", {
-      data: {
-        id: "user-1",
-        email: "ada@example.com",
-        full_name: "Ada Lovelace",
-        avatar_url: null,
-        created_at: "2026-03-10T08:00:00.000Z",
-        updated_at: "2026-03-10T08:00:00.000Z",
-      },
-    });
     supabase.queueResult("repositories", "select", {
       data: [
         {
@@ -89,7 +66,12 @@ describe("DashboardService", () => {
     });
 
     const { DashboardService } = await import("../../../src/modules/dashboard/dashboard.service");
-    const summary = await new DashboardService().getSummary("user-1");
+    const summary = await new DashboardService().getSummary("user-1", {
+      id: "user-1",
+      email: "ada@example.com",
+      fullName: "Ada Lovelace",
+      avatarUrl: null,
+    });
 
     expect(summary.metrics).toMatchObject({
       repositoryCount: 1,

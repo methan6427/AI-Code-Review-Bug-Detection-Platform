@@ -23,6 +23,7 @@ if (!API_URL) {
 }
 
 const defaultRequestTimeoutMs = 8_000;
+const monitoredPaths = new Set(["/auth/me", "/dashboard/summary"]);
 
 export class ApiRequestError extends Error {
   status?: number;
@@ -59,8 +60,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
   const url = `${API_URL}${path}`;
 
-  if (path === "/auth/me") {
-    console.info("[apiClient] /auth/me request start", { apiBaseUrl: API_URL, url, timeoutMs });
+  if (monitoredPaths.has(path)) {
+    console.info(`[apiClient] ${path} request start`, { apiBaseUrl: API_URL, url, timeoutMs });
   }
 
   let response: Response;
@@ -73,8 +74,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   } catch (error) {
     window.clearTimeout(timeoutId);
 
-    if (path === "/auth/me") {
-      console.error("[apiClient] /auth/me request failed", {
+    if (monitoredPaths.has(path)) {
+      console.error(`[apiClient] ${path} request failed`, {
         apiBaseUrl: API_URL,
         url,
         error: error instanceof Error ? error.message : "Unknown fetch error",
@@ -91,8 +92,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     window.clearTimeout(timeoutId);
   }
 
-  if (path === "/auth/me") {
-    console.info("[apiClient] /auth/me response", { apiBaseUrl: API_URL, url, status: response.status, ok: response.ok });
+  if (monitoredPaths.has(path)) {
+    console.info(`[apiClient] ${path} response`, { apiBaseUrl: API_URL, url, status: response.status, ok: response.ok });
   }
 
   if (response.status === 401 && options.authenticated) {

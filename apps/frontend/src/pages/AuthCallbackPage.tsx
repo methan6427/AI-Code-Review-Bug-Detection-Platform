@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { getSupabaseBrowserClient, isSupabaseOAuthConfigured, mapSupabaseSessionToStoredSession } from "../lib/supabase";
 import { Button } from "../components/ui/Button";
@@ -51,17 +51,26 @@ async function waitForSupabaseSession() {
 }
 
 export function AuthCallbackPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { setStoredSession } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [loadingLabel, setLoadingLabel] = useState("Checking your Supabase session");
+  const processedCallbackRef = useRef<string | null>(null);
 
   useEffect(() => {
     const hashParams = getHashParams();
     const authCode = searchParams.get("code");
     const accessToken = hashParams.get("access_token");
     const refreshToken = hashParams.get("refresh_token");
+    const callbackKey = `${location.search}|${window.location.hash}`;
+
+    if (processedCallbackRef.current === callbackKey) {
+      return;
+    }
+
+    processedCallbackRef.current = callbackKey;
 
     console.info("[AuthCallbackPage] callback start", {
       url: window.location.href,
@@ -175,7 +184,7 @@ export function AuthCallbackPage() {
     return () => {
       active = false;
     };
-  }, [navigate, searchParams, setStoredSession]);
+  }, [location.search, navigate, searchParams, setStoredSession]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_22%),linear-gradient(180deg,#020617_0%,#020617_100%)] px-4 py-10">
