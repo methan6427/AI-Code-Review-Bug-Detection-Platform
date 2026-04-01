@@ -1,8 +1,10 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { maintenanceModeEnabled } from "../config/maintenance";
 import { AppLayout } from "../layouts/AppLayout";
 import { DashboardPage } from "../pages/DashboardPage";
 import { AuthPage } from "../pages/AuthPage";
 import { AuthCallbackPage } from "../pages/AuthCallbackPage";
+import { MaintenancePage } from "../pages/MaintenancePage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { RepositoriesPage } from "../pages/RepositoriesPage";
 import { RepositoryDetailsPage } from "../pages/RepositoryDetailsPage";
@@ -11,6 +13,10 @@ import { ScansPage } from "../pages/ScansPage";
 import { ProtectedRoute } from "../routes/ProtectedRoute";
 
 export function App() {
+  if (maintenanceModeEnabled) {
+    return <MaintenancePage />;
+  }
+
   return (
     <Routes>
       <Route path="/auth" element={<AuthPage />} />

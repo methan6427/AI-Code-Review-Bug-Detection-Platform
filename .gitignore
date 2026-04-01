@@ -13,13 +13,4 @@ packages/*/dist
 packages/*/node_modules
 .env
 .env.*
-PROMPTT1.txt
-PROMPTT2.txt
-PROMPTT3.txt
-PROMPTT4.txt
-PROMPTT5.txt
-PROMPTT6.txt
-PROMPTT7.txt
-PROMPTT8.txt
-PROMPTT9.txt
-PROMPTT10.txt
+
