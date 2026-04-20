@@ -1,8 +1,8 @@
 import { app } from "./app";
-//import { env } from "./config/env";
+import { env } from "./config/env";
 import { logger } from "./utils/logger";
 
-const port = Number(process.env.PORT) || 4000;
+const port = env.PORT;
 
 app.listen(port, () => {
   logger.info(`Backend API listening on port ${port}`);

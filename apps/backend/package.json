@@ -2,7 +2,6 @@
   "name": "backend",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "node ../../node_modules/tsx/dist/cli.mjs watch src/server.ts",
     "dev:worker": "node ../../node_modules/tsx/dist/cli.mjs watch src/worker.ts",
@@ -22,6 +21,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
+    "express-rate-limit": "^7.5.1",
     "http-errors": "^2.0.0",
     "zod": "^3.24.2"
   },

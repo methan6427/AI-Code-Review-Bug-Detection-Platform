@@ -1,5 +1,5 @@
 import type { IssueCategory, IssueSeverity, IssueStatus } from "./enums";
-import type { DashboardSummary, Issue, Profile, Repository, SampleFile, Scan, ScanEvent } from "./scan";
+import type { DashboardSummary, Issue, IssueActivity, Profile, Repository, SampleFile, Scan, ScanEvent } from "./scan";
 
 export interface AuthResponse {
   user: {
@@ -110,6 +110,31 @@ export interface UpdateIssueStatusRequest {
 
 export interface UpdateIssueStatusResponse {
   issue: Issue;
+}
+
+export interface UpdateIssueTriageRequest {
+  status?: IssueStatus;
+  triageNote?: string | null;
+  assignedTo?: string | null;
+}
+
+export interface UpdateIssueTriageResponse {
+  issue: Issue;
+}
+
+export interface BulkUpdateIssuesRequest {
+  issueIds: string[];
+  status?: IssueStatus;
+  assignedTo?: string | null;
+}
+
+export interface BulkUpdateIssuesResponse {
+  updated: Issue[];
+  failedIds: string[];
+}
+
+export interface IssueActivityResponse {
+  activity: IssueActivity[];
 }
 
 export interface DashboardSummaryResponse {

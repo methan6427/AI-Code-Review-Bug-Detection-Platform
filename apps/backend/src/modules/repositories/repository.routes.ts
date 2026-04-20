@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../../utils/asyncHandler";
+import { scanTriggerRateLimiter } from "../../middleware/rateLimit";
 import { RepositoryController } from "./repository.controller";
 import { ScanController } from "../scans/scan.controller";
 
@@ -13,4 +14,4 @@ repositoryRouter.post("/import/github", asyncHandler(controller.importGithub.bin
 repositoryRouter.get("/:id", asyncHandler(controller.detail.bind(controller)));
 repositoryRouter.patch("/:id", asyncHandler(controller.update.bind(controller)));
 repositoryRouter.delete("/:id", asyncHandler(controller.remove.bind(controller)));
-repositoryRouter.post("/:id/scan", asyncHandler(scanController.createForRepository.bind(scanController)));
+repositoryRouter.post("/:id/scan", scanTriggerRateLimiter, asyncHandler(scanController.createForRepository.bind(scanController)));

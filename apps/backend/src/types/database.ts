@@ -60,6 +60,41 @@ export interface IssueRow {
   line_number: number | null;
   rule_code: string | null;
   metadata: Issue["metadata"];
+  triage_note: string | null;
+  assigned_to: string | null;
+  last_status_changed_at: string | null;
+  last_status_changed_by: string | null;
+  created_at: string;
+}
+
+export interface IssueActivityRow {
+  id: string;
+  issue_id: string;
+  actor_id: string | null;
+  action:
+    | "created"
+    | "status_changed"
+    | "assigned"
+    | "unassigned"
+    | "note_added"
+    | "note_updated"
+    | "note_cleared";
+  previous_value: unknown;
+  next_value: unknown;
+  note: string | null;
+  created_at: string;
+}
+
+export interface AuditLogRow {
+  id: string;
+  actor_id: string | null;
+  actor_email: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  metadata: Record<string, unknown>;
+  ip_address: string | null;
+  user_agent: string | null;
   created_at: string;
 }
 

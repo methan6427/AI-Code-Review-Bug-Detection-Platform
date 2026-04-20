@@ -5,6 +5,11 @@ import { ScanService } from "./scan.service";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const jitteredDelay = (baseMs: number) => {
+  const jitter = Math.floor(Math.random() * baseMs * 0.3);
+  return baseMs + jitter;
+};
+
 export class ScanWorker {
   private readonly scanService = new ScanService();
   private readonly scanExecutionService = new ScanExecutionService();
@@ -20,7 +25,7 @@ export class ScanWorker {
         const claimedScan = await this.scanService.claimNextQueuedScan();
 
         if (!claimedScan) {
-          await delay(env.SCAN_WORKER_POLL_INTERVAL_MS);
+          await delay(jitteredDelay(env.SCAN_WORKER_POLL_INTERVAL_MS));
           continue;
         }
 
@@ -35,7 +40,7 @@ export class ScanWorker {
         logger.error("Scan worker loop error", {
           message: error instanceof Error ? error.message : "Unknown scan worker error",
         });
-        await delay(env.SCAN_WORKER_POLL_INTERVAL_MS);
+        await delay(jitteredDelay(env.SCAN_WORKER_POLL_INTERVAL_MS));
       }
     }
   }

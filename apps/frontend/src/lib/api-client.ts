@@ -1,18 +1,23 @@
 import type {
   AuthMeResponse,
   AuthResponse,
+  BulkUpdateIssuesRequest,
+  BulkUpdateIssuesResponse,
   CreateRepositoryRequest,
   DashboardSummaryResponse,
   GithubInstallation,
   GithubInstallationRepository,
   ImportGithubRepositoryResponse,
   Issue,
+  IssueActivity,
   IssueFilters,
   Repository,
   RepositoryDetailResponse,
   Scan,
   ScanDetailResponse,
   UpdateIssueStatusResponse,
+  UpdateIssueTriageRequest,
+  UpdateIssueTriageResponse,
   UpdateRepositoryRequest,
 } from "@ai-review/shared";
 import { sessionStorageService } from "./storage";
@@ -238,6 +243,25 @@ export const apiClient = {
       method: "PATCH",
       authenticated: true,
       body: JSON.stringify({ status }),
+    });
+  },
+  updateIssueTriage(id: string, payload: UpdateIssueTriageRequest) {
+    return request<UpdateIssueTriageResponse>(`/issues/${id}/triage`, {
+      method: "PATCH",
+      authenticated: true,
+      body: JSON.stringify(payload),
+    });
+  },
+  bulkUpdateIssues(payload: BulkUpdateIssuesRequest) {
+    return request<BulkUpdateIssuesResponse>("/issues/bulk", {
+      method: "PATCH",
+      authenticated: true,
+      body: JSON.stringify(payload),
+    });
+  },
+  getIssueActivity(id: string) {
+    return request<{ activity: IssueActivity[] }>(`/issues/${id}/activity`, {
+      authenticated: true,
     });
   },
 };

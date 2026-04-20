@@ -56,7 +56,36 @@ type CreateGithubCheckRunInput = {
   }>;
 };
 
+export type PullRequestReviewCommentInput = {
+  installationId: number;
+  owner: string;
+  repository: string;
+  pullNumber: number;
+  commitSha: string;
+  comments: Array<{
+    path: string;
+    line: number;
+    body: string;
+  }>;
+};
+
+export type PullRequestReviewCommentResult = {
+  posted: number;
+  skipped: number;
+};
+
+type CachedInstallationToken = {
+  token: string;
+  expiresAtMs: number;
+};
+
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+const TOKEN_DEFAULT_TTL_MS = 60 * 60 * 1000;
+
 export class GithubIntegrationService {
+  private static installationTokenCache = new Map<number, CachedInstallationToken>();
+  private static inflightTokenRequests = new Map<number, Promise<string>>();
+
   getAppInstallUrl() {
     if (!env.GITHUB_APP_NAME) {
       throw badRequest("GITHUB_APP_NAME is not configured");
@@ -139,6 +168,28 @@ export class GithubIntegrationService {
   }
 
   async createInstallationAccessToken(installationId: number) {
+    const cached = GithubIntegrationService.installationTokenCache.get(installationId);
+    if (cached && cached.expiresAtMs - TOKEN_REFRESH_BUFFER_MS > Date.now()) {
+      return cached.token;
+    }
+
+    const inflight = GithubIntegrationService.inflightTokenRequests.get(installationId);
+    if (inflight) {
+      return inflight;
+    }
+
+    const request = this.requestInstallationAccessToken(installationId).finally(() => {
+      GithubIntegrationService.inflightTokenRequests.delete(installationId);
+    });
+    GithubIntegrationService.inflightTokenRequests.set(installationId, request);
+    return request;
+  }
+
+  invalidateInstallationToken(installationId: number) {
+    GithubIntegrationService.installationTokenCache.delete(installationId);
+  }
+
+  private async requestInstallationAccessToken(installationId: number) {
     logger.info("Requesting GitHub installation access token", {
       installationId,
     });
@@ -157,10 +208,20 @@ export class GithubIntegrationService {
       throw badRequest(`Unable to create a GitHub App installation access token (${response.status})${details ? `: ${details}` : ""}`);
     }
 
-    const payload = (await response.json()) as { token?: unknown };
+    const payload = (await response.json()) as { token?: unknown; expires_at?: unknown };
     if (typeof payload.token !== "string") {
       throw badRequest("GitHub App installation token response was invalid");
     }
+
+    const expiresAtMs =
+      typeof payload.expires_at === "string"
+        ? Date.parse(payload.expires_at) || Date.now() + TOKEN_DEFAULT_TTL_MS
+        : Date.now() + TOKEN_DEFAULT_TTL_MS;
+
+    GithubIntegrationService.installationTokenCache.set(installationId, {
+      token: payload.token,
+      expiresAtMs,
+    });
 
     return payload.token;
   }
@@ -228,6 +289,65 @@ export class GithubIntegrationService {
     });
 
     return payload.id;
+  }
+
+  async createPullRequestReview(input: PullRequestReviewCommentInput): Promise<PullRequestReviewCommentResult> {
+    if (input.comments.length === 0) {
+      return { posted: 0, skipped: 0 };
+    }
+
+    const accessToken = await this.createInstallationAccessToken(input.installationId);
+    const limited = input.comments.slice(0, 30);
+    const skipped = input.comments.length - limited.length;
+
+    const response = await fetch(
+      `https://api.github.com/repos/${input.owner}/${input.repository}/pulls/${input.pullNumber}/reviews`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${accessToken}`,
+          "User-Agent": "ai-code-review-platform",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          commit_id: input.commitSha,
+          event: "COMMENT",
+          body: `AI Review found ${input.comments.length} finding(s) on this pull request.`,
+          comments: limited.map((comment) => ({
+            path: comment.path,
+            line: comment.line,
+            side: "RIGHT",
+            body: comment.body,
+          })),
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const details = await this.readGithubErrorResponse(response);
+      logger.warn("GitHub PR review creation failed", {
+        installationId: input.installationId,
+        owner: input.owner,
+        repository: input.repository,
+        pullNumber: input.pullNumber,
+        status: response.status,
+        details,
+      });
+      return { posted: 0, skipped: input.comments.length };
+    }
+
+    logger.info("GitHub PR review posted", {
+      installationId: input.installationId,
+      owner: input.owner,
+      repository: input.repository,
+      pullNumber: input.pullNumber,
+      posted: limited.length,
+      skipped,
+    });
+
+    return { posted: limited.length, skipped };
   }
 
   private async githubAppRequest(path: string) {

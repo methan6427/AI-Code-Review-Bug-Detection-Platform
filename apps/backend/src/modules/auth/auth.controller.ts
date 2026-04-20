@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { auditLogService } from "../../services/audit/AuditLogService";
 import { AuthService } from "./auth.service";
 import { loginSchema, signupSchema } from "./auth.schema";
 
@@ -8,12 +9,28 @@ export class AuthController {
   async signup(request: Request, response: Response) {
     const input = signupSchema.parse(request.body);
     const result = await authService.signup(input);
+    await auditLogService.record({
+      actorId: result.user.id,
+      actorEmail: result.user.email,
+      action: "auth.signup",
+      resourceType: "auth",
+      resourceId: result.user.id,
+      request,
+    });
     return response.status(201).json(result);
   }
 
   async login(request: Request, response: Response) {
     const input = loginSchema.parse(request.body);
     const result = await authService.login(input);
+    await auditLogService.record({
+      actorId: result.user.id,
+      actorEmail: result.user.email,
+      action: "auth.login",
+      resourceType: "auth",
+      resourceId: result.user.id,
+      request,
+    });
     return response.json(result);
   }
 
@@ -24,6 +41,14 @@ export class AuthController {
     }
 
     const result = await authService.logout(userId);
+    await auditLogService.record({
+      actorId: userId,
+      actorEmail: request.auth?.user.email,
+      action: "auth.logout",
+      resourceType: "auth",
+      resourceId: userId,
+      request,
+    });
     return response.json(result);
   }
 

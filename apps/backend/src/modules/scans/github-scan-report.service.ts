@@ -43,7 +43,7 @@ export class GithubScanReportService {
       source: scan.context.source,
     });
 
-    return githubIntegrationService.createCheckRun({
+    const checkRunId = await githubIntegrationService.createCheckRun({
       installationId,
       owner: repository.owner,
       repository: repository.name,
@@ -56,6 +56,62 @@ export class GithubScanReportService {
       externalId: scan.id,
       annotations,
     });
+
+    if (
+      scan.context.source === "github_pull_request" &&
+      typeof scan.context.pullRequestNumber === "number" &&
+      scan.context.changedFiles.length > 0
+    ) {
+      await this.publishPullRequestReview(repository, scan, issues, installationId);
+    }
+
+    return checkRunId;
+  }
+
+  private async publishPullRequestReview(
+    repository: Repository,
+    scan: Scan,
+    issues: Issue[],
+    installationId: number,
+  ) {
+    const changedFiles = new Set(scan.context.changedFiles);
+    const eligible = issues.filter(
+      (issue) =>
+        issue.filePath !== null &&
+        issue.lineNumber !== null &&
+        issue.lineNumber > 0 &&
+        changedFiles.has(issue.filePath),
+    );
+
+    if (eligible.length === 0) {
+      logger.info("No PR-diff-mappable findings for inline review", {
+        scanId: scan.id,
+        repositoryId: repository.id,
+        totalIssues: issues.length,
+      });
+      return;
+    }
+
+    try {
+      await githubIntegrationService.createPullRequestReview({
+        installationId,
+        owner: repository.owner,
+        repository: repository.name,
+        pullNumber: scan.context.pullRequestNumber!,
+        commitSha: scan.context.commitSha!,
+        comments: eligible.map((issue) => ({
+          path: issue.filePath!,
+          line: issue.lineNumber!,
+          body: buildInlineCommentBody(issue),
+        })),
+      });
+    } catch (error) {
+      logger.warn("Failed to post inline PR review", {
+        scanId: scan.id,
+        repositoryId: repository.id,
+        message: error instanceof Error ? error.message : "Unknown PR review error",
+      });
+    }
   }
 
   async publishFailedScan(repository: Repository, scan: Scan, errorMessage: string) {
@@ -129,6 +185,18 @@ const buildSummaryText = (scan: Scan, issues: Issue[]) =>
   issues.length === 0
     ? `Scan completed with no findings. Source: ${scan.context.source}.`
     : `Scan completed with ${issues.length} finding(s). Critical/high findings require attention before merge.`;
+
+const buildInlineCommentBody = (issue: Issue) =>
+  [
+    `**[${issue.severity.toUpperCase()}] ${issue.title}**`,
+    "",
+    issue.description,
+    "",
+    `**Recommendation:** ${issue.recommendation}`,
+    issue.ruleCode ? `\n_Rule: ${issue.ruleCode}_` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
 const buildDetailsText = (scan: Scan, issues: Issue[]) => {
   const headline = [

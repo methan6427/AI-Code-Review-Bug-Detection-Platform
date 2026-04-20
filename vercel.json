@@ -1,17 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build:frontend && node -e \"require('node:fs').copyFileSync('public/maintenance.html', 'apps/frontend/dist/maintenance.html')\"",
+  "buildCommand": "npm run build:frontend",
   "outputDirectory": "apps/frontend/dist",
-  "routes": [
-    {
-      "src": "/(?!maintenance\\.html$).*",
-      "dest": "/maintenance.html",
-      "status": 503,
-      "headers": {
-        "Cache-Control": "no-store, max-age=0, must-revalidate"
-      }
-    }
-  ],
   "rewrites": [
     {
       "source": "/(.*)",

@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { auditLogService } from "../../services/audit/AuditLogService";
 import { repositoryIdParamSchema } from "../repositories/repository.schema";
 import { scanIdParamSchema } from "./scan.schema";
 import { ScanService } from "./scan.service";
@@ -9,6 +10,15 @@ export class ScanController {
   async createForRepository(request: Request, response: Response) {
     const params = repositoryIdParamSchema.parse(request.params);
     const scan = await scanService.createScan(request.auth!.user.id, params.id);
+    await auditLogService.record({
+      actorId: request.auth!.user.id,
+      actorEmail: request.auth!.user.email,
+      action: "scan.triggered",
+      resourceType: "scan",
+      resourceId: scan.id,
+      metadata: { repositoryId: params.id },
+      request,
+    });
     return response.status(202).json({ scan });
   }
 

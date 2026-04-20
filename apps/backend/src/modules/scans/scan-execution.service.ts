@@ -262,5 +262,9 @@ const mapIssuesForGithubReport = (scanId: string, repositoryId: string, issues: 
     lineNumber: issue.lineNumber,
     ruleCode: issue.ruleCode,
     metadata: issue.metadata ?? {},
+    triageNote: null,
+    assignedTo: null,
+    lastStatusChangedAt: null,
+    lastStatusChangedBy: null,
     createdAt: new Date().toISOString(),
   }));

@@ -145,12 +145,26 @@ export class RepositorySourceService {
 
   private buildFallbackSource(repository: Repository, changedFiles: string[]): LoadedRepositorySource {
     const filter = new Set(normalizeChangedFiles(changedFiles));
-    const filteredFiles =
-      filter.size > 0 ? repository.sampleFiles.filter((file) => filter.has(normalizeRelativePath(file.path))) : repository.sampleFiles;
-    const files = filteredFiles.length > 0 ? filteredFiles : repository.sampleFiles;
+
+    if (filter.size === 0) {
+      return {
+        files: repository.sampleFiles,
+        sourceType: "sample_files",
+        changedFiles: [],
+      };
+    }
+
+    const filteredFiles = repository.sampleFiles.filter((file) => filter.has(normalizeRelativePath(file.path)));
+
+    if (filteredFiles.length === 0) {
+      logger.warn("Changed-file filter excluded all sample files", {
+        repositoryId: repository.id,
+        changedFiles: [...filter],
+      });
+    }
 
     return {
-      files,
+      files: filteredFiles,
       sourceType: "sample_files",
       changedFiles: [...filter],
     };

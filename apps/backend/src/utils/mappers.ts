@@ -1,5 +1,5 @@
-import type { Issue, Profile, Repository, Scan, ScanEvent } from "@ai-review/shared";
-import type { IssueRow, ProfileRow, RepositoryRow, ScanEventRow, ScanRow } from "../types/database";
+import type { Issue, IssueActivity, Profile, Repository, Scan, ScanEvent } from "@ai-review/shared";
+import type { IssueActivityRow, IssueRow, ProfileRow, RepositoryRow, ScanEventRow, ScanRow } from "../types/database";
 
 const defaultScanContext = {
   source: "manual",
@@ -78,6 +78,21 @@ export const mapIssue = (row: IssueRow): Issue => ({
   lineNumber: row.line_number,
   ruleCode: row.rule_code,
   metadata: row.metadata,
+  triageNote: row.triage_note ?? null,
+  assignedTo: row.assigned_to ?? null,
+  lastStatusChangedAt: row.last_status_changed_at ?? null,
+  lastStatusChangedBy: row.last_status_changed_by ?? null,
+  createdAt: row.created_at,
+});
+
+export const mapIssueActivity = (row: IssueActivityRow): IssueActivity => ({
+  id: row.id,
+  issueId: row.issue_id,
+  actorId: row.actor_id,
+  action: row.action,
+  previousValue: row.previous_value,
+  nextValue: row.next_value,
+  note: row.note,
   createdAt: row.created_at,
 });
 

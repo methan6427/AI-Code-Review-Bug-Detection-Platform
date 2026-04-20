@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { auditLogService } from "../../services/audit/AuditLogService";
 import { createRepositorySchema, importGithubRepositorySchema, repositoryIdParamSchema, updateRepositorySchema } from "./repository.schema";
 import { RepositoryService } from "./repository.service";
 
@@ -13,12 +14,29 @@ export class RepositoryController {
   async create(request: Request, response: Response) {
     const input = createRepositorySchema.parse(request.body);
     const repository = await repositoryService.create(request.auth!.user.id, input);
+    await auditLogService.record({
+      actorId: request.auth!.user.id,
+      actorEmail: request.auth!.user.email,
+      action: "repository.created",
+      resourceType: "repository",
+      resourceId: repository.id,
+      metadata: { name: repository.name, owner: repository.owner },
+      request,
+    });
     return response.status(201).json({ repository });
   }
 
   async importGithub(request: Request, response: Response) {
     const input = importGithubRepositorySchema.parse(request.body);
     const repository = await repositoryService.importFromGithubUrl(input.githubUrl);
+    await auditLogService.record({
+      actorId: request.auth!.user.id,
+      actorEmail: request.auth!.user.email,
+      action: "repository.imported",
+      resourceType: "repository",
+      metadata: { githubUrl: input.githubUrl },
+      request,
+    });
     return response.json({ repository });
   }
 
@@ -32,12 +50,29 @@ export class RepositoryController {
     const params = repositoryIdParamSchema.parse(request.params);
     const input = updateRepositorySchema.parse(request.body);
     const repository = await repositoryService.update(request.auth!.user.id, params.id, input);
+    await auditLogService.record({
+      actorId: request.auth!.user.id,
+      actorEmail: request.auth!.user.email,
+      action: "repository.updated",
+      resourceType: "repository",
+      resourceId: repository.id,
+      metadata: { changedKeys: Object.keys(input) },
+      request,
+    });
     return response.json({ repository });
   }
 
   async remove(request: Request, response: Response) {
     const params = repositoryIdParamSchema.parse(request.params);
     const result = await repositoryService.remove(request.auth!.user.id, params.id);
+    await auditLogService.record({
+      actorId: request.auth!.user.id,
+      actorEmail: request.auth!.user.email,
+      action: "repository.deleted",
+      resourceType: "repository",
+      resourceId: params.id,
+      request,
+    });
     return response.json(result);
   }
 }

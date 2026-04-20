@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { IssueCategory, IssueSeverity, IssueStatus } from "@ai-review/shared";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { IssueActivity, IssueCategory, IssueSeverity, IssueStatus } from "@ai-review/shared";
 import { issueCategories, issueSeverities, issueStatuses } from "@ai-review/shared";
 import { IssueCard } from "../components/IssueCard";
 import { Badge } from "../components/ui/Badge";
@@ -18,6 +18,12 @@ import { feedbackMessages } from "../lib/feedback";
 import { getScanSourceLabel, getScanSourceTone, getSourceTypeLabel, hasActiveScan } from "../lib/scans";
 import { formatDateTime, formatRelativeTime, humanizeToken, truncateMiddle } from "../lib/utils";
 
+type TriagePayload = {
+  status?: IssueStatus;
+  triageNote?: string | null;
+  assignedTo?: string | null;
+};
+
 export function ScanDetailsPage() {
   const params = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -32,6 +38,10 @@ export function ScanDetailsPage() {
   const [status, setStatus] = useState<IssueStatus | "">(issueStatuses.includes(initialStatus as IssueStatus) ? (initialStatus as IssueStatus) : "");
   const [search, setSearch] = useState("");
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<IssueStatus | "">("");
+  const [bulkAssignee, setBulkAssignee] = useState<string>("");
+  const [activeActivityIssueIds, setActiveActivityIssueIds] = useState<Set<string>>(new Set());
 
   const scanQuery = useQuery({
     queryKey: ["scan", scanId],
@@ -53,6 +63,23 @@ export function ScanDetailsPage() {
     enabled: scanQuery.isSuccess,
   });
 
+  const activityQueries = useQueries({
+    queries: Array.from(activeActivityIssueIds).map((issueId) => ({
+      queryKey: ["issue-activity", issueId],
+      queryFn: () => apiClient.getIssueActivity(issueId),
+      staleTime: 30_000,
+    })),
+  });
+
+  const activityByIssueId = useMemo(() => {
+    const map = new Map<string, { activity?: IssueActivity[]; isLoading: boolean }>();
+    Array.from(activeActivityIssueIds).forEach((issueId, index) => {
+      const q = activityQueries[index];
+      map.set(issueId, { activity: q?.data?.activity, isLoading: Boolean(q?.isLoading) });
+    });
+    return map;
+  }, [activeActivityIssueIds, activityQueries]);
+
   const updateIssueStatusMutation = useMutation({
     mutationFn: ({ issueId, nextStatus }: { issueId: string; nextStatus: IssueStatus }) => apiClient.updateIssueStatus(issueId, nextStatus),
     onSuccess: async (_data, variables) => {
@@ -61,12 +88,58 @@ export function ScanDetailsPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["scan-issues", scanId] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["issue-activity", variables.issueId] }),
       ]);
     },
     onError: (mutationError) => {
       const message = mutationError instanceof Error ? mutationError.message : "Unable to update issue status";
       setStatusError(message);
       pushToast({ tone: "error", title: "Issue triage failed", description: message });
+    },
+  });
+
+  const updateTriageMutation = useMutation({
+    mutationFn: ({ issueId, payload }: { issueId: string; payload: TriagePayload }) => apiClient.updateIssueTriage(issueId, payload),
+    onSuccess: async (_data, variables) => {
+      setStatusError(null);
+      pushToast({ tone: "success", title: "Triage updated", description: "The issue triage details were saved." });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["scan-issues", scanId] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["issue-activity", variables.issueId] }),
+      ]);
+    },
+    onError: (mutationError) => {
+      const message = mutationError instanceof Error ? mutationError.message : "Unable to update triage";
+      setStatusError(message);
+      pushToast({ tone: "error", title: "Triage update failed", description: message });
+    },
+  });
+
+  const bulkUpdateMutation = useMutation({
+    mutationFn: (payload: { issueIds: string[]; status?: IssueStatus; assignedTo?: string | null }) => apiClient.bulkUpdateIssues(payload),
+    onSuccess: async (data) => {
+      setStatusError(null);
+      const failed = data.failedIds.length;
+      pushToast({
+        tone: failed > 0 ? "warning" : "success",
+        title: failed > 0 ? "Bulk update partially applied" : "Bulk update applied",
+        description: failed > 0
+          ? `Updated ${data.updated.length} issue(s); ${failed} failed.`
+          : `Updated ${data.updated.length} issue(s).`,
+      });
+      setSelectedIds(new Set());
+      setBulkStatus("");
+      setBulkAssignee("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["scan-issues", scanId] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] }),
+      ]);
+    },
+    onError: (mutationError) => {
+      const message = mutationError instanceof Error ? mutationError.message : "Bulk update failed";
+      setStatusError(message);
+      pushToast({ tone: "error", title: "Bulk update failed", description: message });
     },
   });
 
@@ -131,6 +204,11 @@ export function ScanDetailsPage() {
     return accumulator;
   }, {});
   const hasActiveFilters = Boolean(severity || category || status || search.trim());
+  const filteredIds = filteredIssues.map((issue) => issue.id);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+  const selectedCount = selectedIds.size;
+  const bulkPending = bulkUpdateMutation.isPending;
+  const bulkCanApply = selectedCount > 0 && (bulkStatus !== "" || bulkAssignee.trim() !== "" || bulkAssignee === "");
   const updateFilters = (next: { severity?: IssueSeverity | ""; category?: IssueCategory | ""; status?: IssueStatus | "" }) => {
     const params = new URLSearchParams(searchParams);
     const nextSeverity = next.severity ?? severity;
@@ -156,6 +234,57 @@ export function ScanDetailsPage() {
     }
 
     setSearchParams(params, { replace: true });
+  };
+
+  const toggleSelection = (issueId: string, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(issueId);
+      } else {
+        next.delete(issueId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredIds));
+    }
+  };
+
+  const toggleActivityLoad = (issueId: string) => {
+    setActiveActivityIssueIds((prev) => {
+      if (prev.has(issueId)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.add(issueId);
+      return next;
+    });
+  };
+
+  const applyBulk = () => {
+    const issueIds = Array.from(selectedIds);
+    if (issueIds.length === 0) {
+      return;
+    }
+    const payload: { issueIds: string[]; status?: IssueStatus; assignedTo?: string | null } = { issueIds };
+    if (bulkStatus) {
+      payload.status = bulkStatus;
+    }
+    const trimmedAssignee = bulkAssignee.trim();
+    if (trimmedAssignee !== bulkAssignee || trimmedAssignee.length > 0) {
+      payload.assignedTo = trimmedAssignee.length > 0 ? trimmedAssignee : null;
+    }
+    if (payload.status === undefined && payload.assignedTo === undefined) {
+      pushToast({ tone: "warning", title: "Nothing to apply", description: "Pick a status or provide an assignee before applying." });
+      return;
+    }
+    bulkUpdateMutation.mutate(payload);
   };
 
   return (
@@ -348,6 +477,50 @@ export function ScanDetailsPage() {
         </Card>
       </div>
 
+      {filteredIssues.length > 0 ? (
+        <Card className="p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 cursor-pointer rounded border-white/15 bg-slate-950 text-cyan-400 focus:ring-cyan-400/30"
+                  checked={allFilteredSelected}
+                  onChange={toggleSelectAll}
+                />
+                {allFilteredSelected ? "Clear selection" : "Select all filtered"}
+              </label>
+              <Badge tone={selectedCount > 0 ? "info" : "default"}>{selectedCount} selected</Badge>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={bulkStatus} onChange={(event) => setBulkStatus(event.target.value as IssueStatus | "")} className="min-w-[150px]">
+                <option value="">Set status…</option>
+                {issueStatuses.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                aria-label="Bulk assignee"
+                value={bulkAssignee}
+                onChange={(event) => setBulkAssignee(event.target.value)}
+                placeholder="Assignee (empty = clear)"
+                className="min-w-[220px]"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!bulkCanApply || bulkPending}
+                onClick={applyBulk}
+              >
+                {bulkPending ? "Applying…" : "Apply to selection"}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       {statusError ? <InlineMessage tone="error">{statusError}</InlineMessage> : null}
 
       {!issuesQuery.isLoading && filteredIssues.length > 0 ? (
@@ -362,14 +535,26 @@ export function ScanDetailsPage() {
                 <Badge tone="default">{fileIssues.length} issues</Badge>
               </div>
               <div className="mt-4 space-y-4">
-                {fileIssues.map((issue) => (
-                  <IssueCard
-                    key={issue.id}
-                    issue={issue}
-                    isUpdating={updateIssueStatusMutation.isPending && updateIssueStatusMutation.variables?.issueId === issue.id}
-                    onStatusChange={(nextStatus) => updateIssueStatusMutation.mutate({ issueId: issue.id, nextStatus })}
-                  />
-                ))}
+                {fileIssues.map((issue) => {
+                  const activityState = activityByIssueId.get(issue.id);
+                  const isStatusUpdating = updateIssueStatusMutation.isPending && updateIssueStatusMutation.variables?.issueId === issue.id;
+                  const isTriageUpdating = updateTriageMutation.isPending && updateTriageMutation.variables?.issueId === issue.id;
+                  return (
+                    <IssueCard
+                      key={issue.id}
+                      issue={issue}
+                      selectable
+                      isSelected={selectedIds.has(issue.id)}
+                      onSelectChange={(selected) => toggleSelection(issue.id, selected)}
+                      isUpdating={isStatusUpdating || isTriageUpdating}
+                      onStatusChange={(nextStatus) => updateIssueStatusMutation.mutate({ issueId: issue.id, nextStatus })}
+                      onTriageUpdate={(payload) => updateTriageMutation.mutate({ issueId: issue.id, payload })}
+                      onLoadActivity={() => toggleActivityLoad(issue.id)}
+                      activity={activityState?.activity}
+                      isActivityLoading={activityState?.isLoading ?? false}
+                    />
+                  );
+                })}
               </div>
             </Card>
           ))}
